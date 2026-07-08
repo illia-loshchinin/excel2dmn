@@ -15,8 +15,8 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
+      - run: npm install -g npm@latest # trusted publishing requires npm >= 11.5.1
       - run: npm ci
       - run: npm run lint && npm test
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # OIDC trusted publishing: no token needed, provenance is generated automatically.
+      - run: npm publish --access public
