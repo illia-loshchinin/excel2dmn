@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://excel2dmn/schema/model.schema.json",
+  "title": "excel2dmn intermediate model",
+  "type": "object",
+  "required": ["definitions", "decisions"],
+  "properties": {
+    "definitions": {
+      "type": "object",
+      "required": ["id", "name", "namespace"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "namespace": { "type": "string" }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "hitPolicy", "inputs", "outputs", "rules"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "hitPolicy": {
+            "type": "string",
+            "enum": ["UNIQUE", "FIRST", "PRIORITY", "ANY", "COLLECT", "RULE ORDER", "OUTPUT ORDER"]
+          },
+          "aggregation": { "type": ["string", "null"], "enum": ["SUM", "MIN", "MAX", "COUNT", null] },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["expression", "typeRef"],
+              "properties": {
+                "expression": { "type": "string" },
+                "typeRef": { "type": "string" },
+                "label": { "type": "string" },
+                "allowedValues": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["name", "typeRef"],
+              "properties": {
+                "name": { "type": "string" },
+                "typeRef": { "type": "string" },
+                "label": { "type": "string" },
+                "allowedValues": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "row", "inputEntries", "outputEntries"],
+              "properties": {
+                "id": { "type": "string" },
+                "row": { "type": "integer" },
+                "inputEntries": { "type": "array", "items": { "type": "string" } },
+                "outputEntries": { "type": "array", "items": { "type": "string" } },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# Employer / private source material — never commit
+_private/
+# Node
+node_modules/
+dist/
+out/
+coverage/
+*.log
+.npm/
+# OS / editor
+.DS_Store
+.~lock.*#
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated (regenerate via: npm run licenses:notices)
+THIRD-PARTY-NOTICES.txt
+coverage/

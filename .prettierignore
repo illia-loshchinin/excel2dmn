@@ -1,0 +1,6 @@
+node_modules
+dist
+coverage
+*.dmn
+test/fixtures/*.xlsx
+definitions/*.xlsx

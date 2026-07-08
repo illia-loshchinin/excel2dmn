@@ -1,0 +1,28 @@
+stages: [install, verify, convert]
+
+default:
+  image: node:20-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths: [.npm/, node_modules/]
+
+install:
+  stage: install
+  script: [npm ci --cache .npm --prefer-offline]
+
+verify:
+  stage: verify
+  script:
+    - npm run lint
+    - npm test
+    - for f in definitions/*.xlsx; do node bin/excel2dmn.js "$f" --validate-only; done
+
+convert:
+  stage: convert
+  script:
+    - mkdir -p dist
+    - for f in definitions/*.xlsx; do node bin/excel2dmn.js "$f" --out-dir dist --json; done
+    - ls -1 dist/*.dmn | wc -l
+  artifacts:
+    paths: [dist/]
+    expire_in: 30 days

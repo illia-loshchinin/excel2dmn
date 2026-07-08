@@ -1,0 +1,110 @@
+# excel2dmn
+
+[![CI](https://github.com/illia-loshchinin/excel2dmn/actions/workflows/ci.yml/badge.svg)](https://github.com/illia-loshchinin/excel2dmn/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/excel2dmn.svg)](https://www.npmjs.com/package/excel2dmn)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node.js](https://img.shields.io/node/v/excel2dmn.svg)](https://nodejs.org)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/illia-loshchinin/excel2dmn/badge)](https://securityscorecards.dev/viewer/?uri=github.com/illia-loshchinin/excel2dmn)
+[![Provenance](https://img.shields.io/badge/npm-provenance-brightgreen)](https://docs.npmjs.com/generating-provenance-statements)
+
+
+Convert pre-formatted **Excel decision tables** into **Camunda 7 DMN 1.3** files — one `.dmn` per sheet, ready to import into the Camunda Modeler / Web Modeler.
+
+- Marker-driven, position-independent parsing (no fixed rows/columns)
+- One workbook → **one `.dmn` per `DMN` sheet**
+- Type-aware **FEEL validation** with precise `Sheet!Cell` errors
+- **Allowed values** (`inputValues`/`outputValues`), **hit policies**, **annotations** (as `<description>`)
+- **Camunda 7** `historyTimeToLive` / `versionTag` so files deploy out of the box
+- **Readable, deterministic ids** → clean diffs and byte-stable output
+- Static **analysis**: overlap / duplicate / shadowed / gap detection
+- `excel2dmn init` scaffolds a ready-to-fill template
+- **Reverse import** (`excel2dmn import`): existing `.dmn` → `.xlsx` (round-trips byte-identically)
+
+## Install
+
+```bash
+# from npm (once published)
+npm install -g excel2dmn        # or: npx excel2dmn <file.xlsx>
+
+# straight from GitHub (no npm publish needed)
+npm install -g github:illia-loshchinin/excel2dmn#v0.1.0
+```
+
+## Usage
+
+```bash
+# Convert every "DMN" sheet in a workbook into out/<DecisionId>.dmn
+excel2dmn rules.xlsx --out-dir out --json
+
+# Single-sheet workbook to a named file
+excel2dmn shipping_rates_DMN.xlsx -o out/SHIPPING_RATES.dmn
+
+# Validate only (CI gate) / run static analysis
+excel2dmn rules.xlsx --validate-only
+excel2dmn rules.xlsx --analyze
+
+# Generate a starter template
+excel2dmn init --name "Shipping Rate Decision" -o shipping_DMN.xlsx
+
+# Reverse: turn an existing DMN into an editable Excel template
+excel2dmn import existing.dmn -o existing.xlsx
+```
+
+### Programmatic API
+
+```js
+import { convert, parseWorkbook, buildDmn, loadConfig } from 'excel2dmn';
+
+const { results, problems } = await convert('rules.xlsx', { config: loadConfig({}) });
+```
+
+## The sheet template
+
+Only sheets whose **name contains `DMN`** are processed. Each is described by a
+**5-row header** (found by the marker row, not a fixed position):
+
+| Row | Purpose |
+|-----|---------|
+| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper) |
+| Name | technical/FEEL name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value |
+| Type | `string` · `number` · `boolean` · `any` · `date` … |
+| Label | human column header |
+| Allowed values | optional FEEL list (`"EU","US"`) → dropdowns; required for `PRIORITY`/`OUTPUT ORDER` |
+
+Rules follow beneath the header. A row is a rule if any input/output cell is
+filled; reading stops at the first fully-empty row. Rule ids are generated as
+`rule_<excelRow>`. An `Annotations` cell becomes that rule's `<description>`.
+
+See [`SOLUTION_SPEC.md`](./SOLUTION_SPEC.md) for the full contract, and
+`definitions/shipping_rates_DMN.xlsx` for a worked example.
+
+## Configuration
+
+All markers and rules are configurable via `excel2dmn.config.json` (or `--config`).
+Precedence: CLI flags → `--config` → `./excel2dmn.config.json` → built-in defaults.
+Run `node -e "import('excel2dmn').then(m=>console.log(m.DEFAULT_CONFIG))"` to see every option.
+
+## Development
+
+```bash
+npm install
+npm test          # vitest (golden-file, multi-sheet, validation, analysis, init)
+npm run lint
+npm run convert -- definitions/shipping_rates_DMN.xlsx --out-dir out
+```
+
+## Security
+
+`excel2dmn` is a local CLI: it makes **no network calls** and **never executes
+spreadsheet content** (FEEL is parsed, not evaluated). See [`SECURITY.md`](./SECURITY.md)
+for the threat model and how to report a vulnerability.
+
+## Contributing
+
+Issues and PRs welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
+
+## License
+
+MIT © excel2dmn contributors. Third-party dependency licenses are listed in
+[`THIRD-PARTY-NOTICES.txt`](./THIRD-PARTY-NOTICES.txt).

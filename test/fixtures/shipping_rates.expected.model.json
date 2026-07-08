@@ -1,0 +1,148 @@
+{
+  "definitions": {
+    "id": "definitions_SHIPPING_RATES",
+    "name": "Shipping Rate Decision",
+    "namespace": "http://camunda.org/schema/1.0/dmn"
+  },
+  "decisions": [
+    {
+      "id": "SHIPPING_RATES",
+      "name": "Shipping Rate Decision",
+      "hitPolicy": "UNIQUE",
+      "aggregation": null,
+      "inputs": [
+        {
+          "label": "Order total",
+          "expression": "orderTotal",
+          "typeRef": "integer",
+          "allowedValues": null
+        },
+        {
+          "label": "Region",
+          "expression": "region",
+          "typeRef": "string",
+          "allowedValues": null
+        },
+        {
+          "label": "Member?",
+          "expression": "isMember",
+          "typeRef": "boolean",
+          "allowedValues": null
+        },
+        {
+          "label": "Weight (kg)",
+          "expression": "weightKg",
+          "typeRef": "double",
+          "allowedValues": null
+        },
+        {
+          "label": "Tags",
+          "expression": "tags",
+          "typeRef": "any",
+          "allowedValues": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "shippingMethod",
+          "label": "Shipping method",
+          "typeRef": "string",
+          "allowedValues": null
+        },
+        {
+          "name": "deliveryDays",
+          "label": "Delivery days",
+          "typeRef": "integer",
+          "allowedValues": null
+        }
+      ],
+      "rules": [
+        {
+          "id": "rule_1",
+          "seq": 1,
+          "row": 5,
+          "inputEntries": [
+            "< 50",
+            "\"EU\"",
+            "",
+            "",
+            ""
+          ],
+          "outputEntries": [
+            "\"STANDARD\"",
+            "5"
+          ],
+          "description": "standard EU parcel"
+        },
+        {
+          "id": "rule_2",
+          "seq": 2,
+          "row": 6,
+          "inputEntries": [
+            "[50..200)",
+            "\"EU\"",
+            "true",
+            "",
+            ""
+          ],
+          "outputEntries": [
+            "\"EXPRESS\"",
+            "3"
+          ],
+          "description": "EU member express"
+        },
+        {
+          "id": "rule_3",
+          "seq": 3,
+          "row": 7,
+          "inputEntries": [
+            ">= 200",
+            "\"EU\"",
+            "",
+            "> 20",
+            "not(some t in [\"fragile\"] satisfies t = tag)"
+          ],
+          "outputEntries": [
+            "\"FREIGHT\"",
+            "7"
+          ],
+          "description": "EU heavy freight"
+        },
+        {
+          "id": "rule_4",
+          "seq": 4,
+          "row": 8,
+          "inputEntries": [
+            "< 100",
+            "\"US\"",
+            "false",
+            "",
+            ""
+          ],
+          "outputEntries": [
+            "\"STANDARD\"",
+            "8"
+          ],
+          "description": "US ground"
+        },
+        {
+          "id": "rule_5",
+          "seq": 5,
+          "row": 9,
+          "inputEntries": [
+            ">= 100",
+            "\"US\"",
+            "true",
+            "",
+            ""
+          ],
+          "outputEntries": [
+            "\"EXPRESS\"",
+            "3"
+          ],
+          "description": "US member express"
+        }
+      ]
+    }
+  ]
+}
