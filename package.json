@@ -1,6 +1,6 @@
 {
   "name": "excel2dmn",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Convert pre-formatted Excel decision tables into Camunda 7 DMN 1.3 files (and back).",
   "type": "module",
   "license": "MIT",
