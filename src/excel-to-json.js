@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { toNcNameId, cellRef, dedupe } from './ids.js';
 import { ProblemCollector } from './errors.js';
 import { createEntryValidator, isStringLiteral } from './feel-validate.js';
+import { isAnyType } from './config.js';
 
 function cellText(ws, row, col) {
   const cell = ws.getCell(row, col);
@@ -101,11 +102,11 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     const role = inputs.includes(d) ? 'input' : 'output';
     if (!d.name) problems.add(`missing technical name for ${role}`, cellRef(ws.name, M + cfg.header.nameOffset, d.col));
     if (!d.typeRef) problems.add(`missing typeRef for ${role} '${d.name}'`, cellRef(ws.name, M + cfg.header.typeOffset, d.col));
-    else if (!cfg.types.allowed.includes(d.typeRef))
+    else if (!cfg.types.allowed.includes(d.typeRef) && !isAnyType(d.typeRef, cfg))
       problems.add(`unknown typeRef '${d.typeRef}'`, cellRef(ws.name, M + cfg.header.typeOffset, d.col));
     else if (
       cfg.types.nonCamundaTypeAction !== 'off' &&
-      d.typeRef !== cfg.types.anyKeyword &&
+      !isAnyType(d.typeRef, cfg) &&
       !cfg.types.camundaTypes.includes(d.typeRef)
     ) {
       const hint = cfg.types.numeric.includes(d.typeRef)

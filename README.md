@@ -67,7 +67,7 @@ Only sheets whose **name contains `DMN`** are processed. Each is described by a
 |-----|---------|
 | Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper) |
 | Name | technical/FEEL name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value |
-| Type | `string` · `number` · `boolean` · `any` · `date` … |
+| Type | `string` · `number` · `boolean` · `any` · `date` … (untyped may be `any`, `none`, or `object`, any casing) |
 | Label | human column header |
 | Allowed values | optional FEEL list (`"EU","US"`) → dropdowns; required for `PRIORITY`/`OUTPUT ORDER` |
 
