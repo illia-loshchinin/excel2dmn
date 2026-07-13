@@ -70,4 +70,23 @@ describe('untyped "any" aliases', () => {
     // A typed column is still emitted verbatim.
     expect(xml).toContain('typeRef="string"');
   });
+
+  it('omits typeRef for any-typed columns by default', async () => {
+    const [model] = await dmnToModels(DMN_WITH_ALIASES, cfg);
+    const xml = await buildDmn(model, cfg);
+    expect(xml).toContain('<inputExpression id="foo_expression">'); // no typeRef attr
+    expect(xml).toMatch(/<output id="bar"[^>]*name="bar"(?![^>]*typeRef)/);
+  });
+
+  it('emits a configurable placeholder typeRef for any-typed columns when set', async () => {
+    const placeholderCfg = loadConfig({ overrides: { types: { anyDmnPlaceholder: 'Any' } } });
+    const [model] = await dmnToModels(DMN_WITH_ALIASES, placeholderCfg);
+    const xml = await buildDmn(model, placeholderCfg);
+    expect(xml).toContain('<inputExpression id="foo_expression" typeRef="Any">');
+    expect(xml).toContain('<output id="bar" label="Bar" name="bar" typeRef="Any" />');
+    // The placeholder still round-trips back to canonical "any" on re-import.
+    const [reimported] = await dmnToModels(xml, cfg);
+    expect(reimported.decisions[0].inputs[0].typeRef).toBe('any');
+    expect(reimported.decisions[0].outputs[0].typeRef).toBe('any');
+  });
 });

@@ -205,7 +205,7 @@ Notes:
 - `rule.seq` = the **1-based index** of the rule (used for ids: `rule_<seq>`, `<name>_<seq>`). `rule.row` = the **Excel row number** (used for error/analysis messages).
 - `inputEntries` / `outputEntries` arrays are **positionally aligned** with `inputs` / `outputs`.
 - Any input cell matching `rules.anyInputTokens` (default `["-", ""]` — a `-` **or an empty cell**) ⇒ `""` in `inputEntries`, emitted as `<text></text>` (DMN "any"; renders as `-`). Never a literal `<text>-</text>` by default. Empty output cell ⇒ `""` (emitted as an empty `<text></text>`).
-- `typeRef: "any"` ⇒ omit `typeRef` in the DMN (Camunda shows it as "Any"). The aliases `none`/`object` (any casing) are treated the same; on import, an untyped column's `typeRef` (`Any`/`None`/`object`/absent) is normalized to `any`.
+- `typeRef: "any"` ⇒ by default omit `typeRef` in the DMN (Camunda shows it as "Any"); set `types.anyDmnPlaceholder` to instead emit `typeRef="<value>"` (e.g. `"Any"`). The aliases `none`/`object` (any casing) are treated the same; on import, an untyped column's `typeRef` (`Any`/`None`/`object`/absent) is normalized to `any`.
 - **Allowed values (optional):** each input/output carries `allowedValues` — a verbatim FEEL list string (e.g. `"\"EU\",\"US\""`) or `null`. Non-null ⇒ `<inputValues>`/`<outputValues>` in the DMN (§6.1).
 - **Annotations (optional):** a rule's annotation value is carried as `rule.description` (a string). Blank/absent ⇒ the field is omitted and no `<description>` is emitted. There is **no** decision-level `annotations` array and no per-rule `annotationEntries` — annotations are just the rule description (§3.2).
 - Helper columns are not represented in the model at all — only `inputs`, `outputs`, rule entries, and (if present) rule `description` appear.
@@ -351,7 +351,7 @@ For each decision (all ids follow the **readable, deterministic scheme** in §6.
 > - **Hit policy `UNIQUE` is the DMN default and moddle OMITS it from the XML.** It only writes `hitPolicy=` for non-default values (FIRST, COLLECT, …). This is correct and Camunda-compatible — do not treat a missing `hitPolicy` attribute as a bug.
 > - dmn-moddle import is a **named** export: `import { DmnModdle } from 'dmn-moddle'` (not a default import).
 
-`typeRef` handling: omit for `any` (and its aliases `none`/`object`, any casing); otherwise pass through. Only DMN 1.3 built-in FEEL types should reach the writer — validate against the allowed set and warn on unknowns.
+`typeRef` handling: for `any` (and its aliases `none`/`object`, any casing) emit `types.anyDmnPlaceholder` when set, else omit the attribute; otherwise pass the type through. Only DMN 1.3 built-in FEEL types should reach the writer — validate against the allowed set and warn on unknowns.
 
 ### 6.2 DRD + DMNDI (layout)
 
@@ -563,9 +563,12 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
 
   // --- type mapping ---
   "types": {
-    "anyKeyword": "any",          // canonical untyped keyword → omit typeRef in DMN
+    "anyKeyword": "any",          // canonical untyped keyword
     "anyAliases": ["any","none","object"], // all mean "untyped" (matched case-insensitively);
                                   // on import any of these is normalized to "any"
+    "anyDmnPlaceholder": null,    // typeRef written for an "any" column in the DMN:
+                                  // null/"" → omit the attribute (Camunda shows "Any");
+                                  // a string (e.g. "Any") → emit typeRef="<value>"
     "allowed": ["string","boolean","number","integer","long","double","any",
                 "date","time","dateTime","dayTimeDuration","yearMonthDuration"],
     "numeric": ["number","integer","long","double"], // validated with numeric rules

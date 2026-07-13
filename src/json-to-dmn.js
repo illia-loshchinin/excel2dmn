@@ -9,6 +9,19 @@ function createModdle() {
   return new DmnModdle({ camunda: camundaModdleDescriptor });
 }
 
+/**
+ * The `typeRef` attribute(s) to emit for a column, keyed off its typeRef.
+ * Untyped ("any") columns emit the configured `types.anyDmnPlaceholder` when set,
+ * otherwise no typeRef at all (Camunda renders that as "Any"). Typed columns pass through.
+ */
+function typeRefAttr(typeRef, cfg) {
+  if (isAnyType(typeRef, cfg)) {
+    const placeholder = cfg.types.anyDmnPlaceholder;
+    return placeholder ? { typeRef: placeholder } : {};
+  }
+  return { typeRef };
+}
+
 /** Rewrite the dmn: prefix to the default (unprefixed) MODEL namespace. */
 function toDefaultNamespace(xml) {
   return xml
@@ -29,7 +42,7 @@ export async function buildDmn(model, cfg) {
       ...(i.label ? { label: i.label } : {}),
       inputExpression: moddle.create('dmn:LiteralExpression', {
         id: `${i.expression}_expression`,
-        ...(isAnyType(i.typeRef, cfg) ? {} : { typeRef: i.typeRef }),
+        ...typeRefAttr(i.typeRef, cfg),
         text: i.expression,
       }),
       ...(i.allowedValues
@@ -43,7 +56,7 @@ export async function buildDmn(model, cfg) {
       id: o.name,
       name: o.name,
       ...(o.label ? { label: o.label } : {}),
-      ...(isAnyType(o.typeRef, cfg) ? {} : { typeRef: o.typeRef }),
+      ...typeRefAttr(o.typeRef, cfg),
       ...(o.allowedValues
         ? { outputValues: moddle.create('dmn:UnaryTests', { text: o.allowedValues }) }
         : {}),

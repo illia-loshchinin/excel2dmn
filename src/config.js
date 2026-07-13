@@ -39,6 +39,11 @@ export const DEFAULT_CONFIG = Object.freeze({
     // Aliases (matched case-insensitively) all meaning the untyped/"Any" type.
     // Camunda/DMN tools variously emit 'Any', 'none' or 'object' for untyped columns.
     anyAliases: ['any', 'none', 'object'],
+    // What typeRef to write for an "any"/untyped column in the emitted DMN.
+    // null/'' -> omit the typeRef attribute entirely (Camunda renders it as "Any").
+    // A string (e.g. 'Any') -> emit typeRef="<value>". Use one of anyAliases so the
+    // result still round-trips back to "any" on import.
+    anyDmnPlaceholder: null,
     allowed: [
       'string',
       'boolean',
