@@ -1,9 +1,12 @@
 // Command-line interface. Spec §7.
 import { Command } from 'commander';
 import { resolve } from 'node:path';
+import { existsSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline/promises';
 import { loadConfig } from './config.js';
 import { convert, importDmn } from './index.js';
 import { writeTemplate } from './init-template.js';
+import { buildConfig, serializeConfig } from './init-config.js';
 import { formatAnalysis } from './analyze.js';
 import { ConversionError } from './errors.js';
 
@@ -75,6 +78,32 @@ async function initAction(opts) {
   console.log(`✓ wrote template ${out}`);
 }
 
+async function confirmOverwrite(path) {
+  if (!process.stdin.isTTY) return false;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const ans = await rl.question(`${path} already exists — overwrite? [y/N] `);
+    return /^(y|yes)$/i.test(ans.trim());
+  } finally {
+    rl.close();
+  }
+}
+
+async function configAction(opts) {
+  const out = resolve(opts.out);
+  if (existsSync(out) && !opts.force && !(await confirmOverwrite(out))) {
+    fail(`${out} exists; use --force to overwrite`);
+  }
+  const cfg = await buildConfig({
+    input: process.stdin,
+    output: process.stdout,
+    defaults: opts.defaults,
+    full: opts.full,
+  });
+  writeFileSync(out, serializeConfig(cfg), 'utf8');
+  console.log(`✓ wrote config ${out}`);
+}
+
 export function buildProgram() {
   const program = new Command();
   program
@@ -115,6 +144,15 @@ export function buildProgram() {
     .option('--config <file>', 'config JSON file')
     .option('--minimal', 'skip example rules / annotation column')
     .action(initAction);
+
+  program
+    .command('config')
+    .description('generate an excel2dmn.config.json (interactive wizard by default)')
+    .option('-o, --out <file>', 'output config path', 'excel2dmn.config.json')
+    .option('--full', 'write every key (default: only keys that differ from defaults)')
+    .option('-y, --defaults', 'non-interactive: write the full default config without prompting')
+    .option('--force', 'overwrite an existing file without confirmation')
+    .action(configAction);
 
   return program;
 }
