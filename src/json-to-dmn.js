@@ -1,6 +1,7 @@
 // Stage B: build DMN 1.3 XML from one intermediate model. Spec §6.
 import { DmnModdle } from 'dmn-moddle';
 import { camundaModdleDescriptor } from './camunda-moddle.js';
+import { isAnyType } from './config.js';
 
 const MODEL_NS = 'https://www.omg.org/spec/DMN/20191111/MODEL/';
 
@@ -28,7 +29,7 @@ export async function buildDmn(model, cfg) {
       ...(i.label ? { label: i.label } : {}),
       inputExpression: moddle.create('dmn:LiteralExpression', {
         id: `${i.expression}_expression`,
-        ...(i.typeRef === cfg.types.anyKeyword ? {} : { typeRef: i.typeRef }),
+        ...(isAnyType(i.typeRef, cfg) ? {} : { typeRef: i.typeRef }),
         text: i.expression,
       }),
       ...(i.allowedValues
@@ -42,7 +43,7 @@ export async function buildDmn(model, cfg) {
       id: o.name,
       name: o.name,
       ...(o.label ? { label: o.label } : {}),
-      ...(o.typeRef === cfg.types.anyKeyword ? {} : { typeRef: o.typeRef }),
+      ...(isAnyType(o.typeRef, cfg) ? {} : { typeRef: o.typeRef }),
       ...(o.allowedValues
         ? { outputValues: moddle.create('dmn:UnaryTests', { text: o.allowedValues }) }
         : {}),

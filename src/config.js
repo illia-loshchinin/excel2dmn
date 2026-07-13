@@ -36,6 +36,9 @@ export const DEFAULT_CONFIG = Object.freeze({
   },
   types: {
     anyKeyword: 'any',
+    // Aliases (matched case-insensitively) all meaning the untyped/"Any" type.
+    // Camunda/DMN tools variously emit 'Any', 'none' or 'object' for untyped columns.
+    anyAliases: ['any', 'none', 'object'],
     allowed: [
       'string',
       'boolean',
@@ -87,6 +90,18 @@ export const DEFAULT_CONFIG = Object.freeze({
 
 function isObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Whether a typeRef denotes the untyped ("Any") type. Matches any of
+ * `cfg.types.anyAliases` case-insensitively (plus the canonical `anyKeyword`).
+ * Returns false for empty/missing values so "missing typeRef" stays an error.
+ */
+export function isAnyType(typeRef, cfg) {
+  if (!typeRef) return false;
+  const aliases = cfg.types.anyAliases || [cfg.types.anyKeyword];
+  const set = new Set([cfg.types.anyKeyword, ...aliases].map((t) => String(t).toLowerCase()));
+  return set.has(String(typeRef).toLowerCase());
 }
 
 /** Deep-merge plain objects (arrays and scalars are replaced, not merged). */

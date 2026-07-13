@@ -1,6 +1,7 @@
 // Reverse Stage B: parse a DMN 1.3 file into intermediate model(s). Spec §16 (interop).
 import { DmnModdle } from 'dmn-moddle';
 import { camundaModdleDescriptor } from './camunda-moddle.js';
+import { isAnyType } from './config.js';
 
 function moddle() {
   return new DmnModdle({ camunda: camundaModdleDescriptor });
@@ -31,14 +32,14 @@ export async function dmnToModels(xml, cfg) {
       return {
         label: inp.label || undefined,
         expression: text(expr) || inp.id,
-        typeRef: expr.typeRef || anyKw,
+        typeRef: !expr.typeRef || isAnyType(expr.typeRef, cfg) ? anyKw : expr.typeRef,
         allowedValues: inp.inputValues ? text(inp.inputValues) || null : null,
       };
     });
     const outputs = (table.output || []).map((out) => ({
       name: out.name || out.id,
       label: out.label || undefined,
-      typeRef: out.typeRef || anyKw,
+      typeRef: !out.typeRef || isAnyType(out.typeRef, cfg) ? anyKw : out.typeRef,
       allowedValues: out.outputValues ? text(out.outputValues) || null : null,
     }));
     const rules = (table.rule || []).map((rule, i) => {
