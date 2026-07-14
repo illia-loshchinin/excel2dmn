@@ -72,7 +72,13 @@ export const DEFAULT_CONFIG = Object.freeze({
   },
   validation: { feel: { mode: 'all-inputs', failFast: false }, enforceAllowedValues: false },
   outputEntries: { requireQuotes: true, autoQuote: false },
+  // Target platform: 'camunda7' (DMN 1.3 + camunda: extension attrs, the default)
+  // or 'camunda8' (Zeebe/SaaS: modeler execution-platform metadata, no camunda: attrs).
+  platform: 'camunda7',
+  // Camunda 7 extension attributes emitted on <decision>.
   camunda: { historyTimeToLive: 'P180D', versionTag: null },
+  // Camunda 8 modeler metadata emitted on <definitions> when platform === 'camunda8'.
+  camunda8: { executionPlatform: 'Camunda Cloud', executionPlatformVersion: '8.6.0' },
   output: {
     namespace: 'http://camunda.org/schema/1.0/dmn',
     expressionLanguage: 'https://www.omg.org/spec/DMN/20191111/FEEL/',

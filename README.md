@@ -8,13 +8,13 @@
 [![Provenance](https://img.shields.io/badge/npm-provenance-brightgreen)](https://docs.npmjs.com/generating-provenance-statements)
 
 
-Convert pre-formatted **Excel decision tables** into **Camunda 7 DMN 1.3** files — one `.dmn` per sheet, ready to import into the Camunda Modeler / Web Modeler.
+Convert pre-formatted **Excel decision tables** into **Camunda 7 or Camunda 8 DMN 1.3** files — one `.dmn` per sheet, ready to import into the Camunda Modeler / Web Modeler.
 
 - Marker-driven, position-independent parsing (no fixed rows/columns)
 - One workbook → **one `.dmn` per `DMN` sheet**
 - Type-aware **FEEL validation** with precise `Sheet!Cell` errors
 - **Allowed values** (`inputValues`/`outputValues`), **hit policies**, **annotations** (as `<description>`)
-- **Camunda 7** `historyTimeToLive` / `versionTag` so files deploy out of the box
+- **Camunda 7** (default) `historyTimeToLive` / `versionTag`, or **Camunda 8** (`--platform camunda8`) modeler execution-platform metadata
 - **Readable, deterministic ids** → clean diffs and byte-stable output
 - Static **analysis**: overlap / duplicate / shadowed / gap detection
 - `excel2dmn init` scaffolds a ready-to-fill template
@@ -38,6 +38,9 @@ excel2dmn rules.xlsx --out-dir out --json
 
 # Single-sheet workbook to a named file
 excel2dmn shipping_rates_DMN.xlsx -o out/SHIPPING_RATES.dmn
+
+# Target Camunda 8 instead of Camunda 7 (default)
+excel2dmn rules.xlsx --platform camunda8 --out-dir out
 
 # Validate only (CI gate) / run static analysis
 excel2dmn rules.xlsx --validate-only

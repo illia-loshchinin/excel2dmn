@@ -49,6 +49,7 @@ const INTENTIONALLY_UNPROMPTED = {
   'types.number.allowExpressions': 'deep FEEL tuning',
   'types.string.allowExpressions': 'deep FEEL tuning',
   'types.boolean.allowExpressions': 'deep FEEL tuning',
+  'camunda8.executionPlatform': 'fixed Camunda 8 platform identifier ("Camunda Cloud")',
   'outputEntries.requireQuotes': 'paired with autoQuote, which is prompted',
   'output.expressionLanguage': 'fixed FEEL URI',
   'output.typeLanguage': 'fixed FEEL URI',
@@ -158,7 +159,7 @@ async function runWizard(lines, { full = false } = {}) {
 describe('interactive wizard', () => {
   // Essentials order: sheet.value, sheet.match, sheet.caseInsensitive,
   // markers.id, markers.name, markers.input, markers.output, markers.policy,
-  // markers.annotations, allowed-values, hitPolicy.default,
+  // markers.annotations, allowed-values, platform, hitPolicy.default,
   // output.outDir, output.writeModelJson, then the advanced gate.
   const acceptAllEssentials = ['', '', '', '', '', '', '', '', ''];
 
@@ -174,6 +175,7 @@ describe('interactive wizard', () => {
       '', // markers.policy
       '', // markers.annotations
       'y', // enable allowed-values
+      '', // platform
       'FIRST', // hit policy
       'out', // output.outDir
       'y', // writeModelJson
@@ -190,12 +192,12 @@ describe('interactive wizard', () => {
   });
 
   it('accepting every default yields an empty diff', async () => {
-    const cfg = await runWizard([...acceptAllEssentials, '', '', '', '', 'n']);
+    const cfg = await runWizard([...acceptAllEssentials, '', '', '', '', '', 'n']);
     expect(cfg).toEqual({});
   });
 
   it('full mode returns a config that merges cleanly over defaults', async () => {
-    const cfg = await runWizard([...acceptAllEssentials, '', 'FIRST', '', '', 'n'], { full: true });
+    const cfg = await runWizard([...acceptAllEssentials, '', '', 'FIRST', '', '', 'n'], { full: true });
     expect(cfg.hitPolicy.default).toBe('FIRST');
     expect(cfg.markers.id).toBe('id'); // untouched default present in full mode
     expect(deepMerge(DEFAULT_CONFIG, cfg)).toEqual(cfg); // already a full config

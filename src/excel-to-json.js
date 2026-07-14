@@ -105,6 +105,9 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     else if (!cfg.types.allowed.includes(d.typeRef) && !isAnyType(d.typeRef, cfg))
       problems.add(`unknown typeRef '${d.typeRef}'`, cellRef(ws.name, M + cfg.header.typeOffset, d.col));
     else if (
+      // Camunda 8's FEEL engine supports the full DMN type set, so the narrow
+      // decision-table type restriction only applies to Camunda 7.
+      cfg.platform !== 'camunda8' &&
       cfg.types.nonCamundaTypeAction !== 'off' &&
       !isAnyType(d.typeRef, cfg) &&
       !cfg.types.camundaTypes.includes(d.typeRef)

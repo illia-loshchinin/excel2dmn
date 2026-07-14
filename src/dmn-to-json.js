@@ -1,10 +1,10 @@
 // Reverse Stage B: parse a DMN 1.3 file into intermediate model(s). Spec §16 (interop).
 import { DmnModdle } from 'dmn-moddle';
-import { camundaModdleDescriptor } from './camunda-moddle.js';
+import { camundaModdleDescriptor, modelerModdleDescriptor } from './camunda-moddle.js';
 import { isAnyType } from './config.js';
 
 function moddle() {
-  return new DmnModdle({ camunda: camundaModdleDescriptor });
+  return new DmnModdle({ camunda: camundaModdleDescriptor, modeler: modelerModdleDescriptor });
 }
 
 const text = (el) => (el && el.text != null ? String(el.text) : '');
@@ -77,6 +77,12 @@ export async function dmnToModels(xml, cfg) {
       __camunda: {
         historyTimeToLive: dec.historyTimeToLive || null,
         versionTag: dec.versionTag || null,
+      },
+      // Detected target platform: Camunda 8 files carry modeler:executionPlatform="Camunda Cloud".
+      __platform: defs.executionPlatform === 'Camunda Cloud' ? 'camunda8' : 'camunda7',
+      __camunda8: {
+        executionPlatform: defs.executionPlatform || null,
+        executionPlatformVersion: defs.executionPlatformVersion || null,
       },
     };
   });

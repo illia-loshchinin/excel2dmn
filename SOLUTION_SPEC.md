@@ -473,6 +473,18 @@ Behavior:
 
 > **Verified** (dmn-moddle 12.0.1): the extension emits `camunda:historyTimeToLive="P180D"` / `camunda:versionTag="1.2"` on `<decision>` and re-parses with **0 warnings**.
 
+### 6.6 Camunda 8 target — `platform: "camunda8"`
+
+Setting `platform` to `"camunda8"` (config or `--platform camunda8`; default is `"camunda7"`) emits a Camunda 8 (Zeebe/SaaS) flavor of the same DMN 1.3:
+
+- Adds `modeler:executionPlatform="Camunda Cloud"` and `modeler:executionPlatformVersion` (config `camunda8.executionPlatformVersion`, default `"8.6.0"`) as attributes on `<definitions>`, via an inline `modeler` moddle extension (`http://camunda.org/schema/modeler/1.0`).
+- **Omits** the Camunda 7 `camunda:historyTimeToLive` / `camunda:versionTag` attributes (unsupported in Camunda 8 DMN). Because moddle only declares a namespace it actually uses, `xmlns:camunda` disappears and `xmlns:modeler` appears — the two never co-occur, so Camunda 7 output stays byte-identical.
+- Relaxes the Camunda 7 `types.camundaTypes` restriction (§5): Camunda 8's FEEL engine supports the full DMN/FEEL type set, so `number`, `time`, `dateTime`, and the duration types pass without warning.
+- The default-namespace post-process (§6.3) rewrites only `dmn:` tags, so the `modeler:` attribute prefix and `xmlns:modeler` pass through untouched.
+- Everything else — decisionTable, inputs/outputs, rules, DMNDI — is identical standard DMN 1.3.
+
+Reverse `import` (§16) detects the source platform from `modeler:executionPlatform` (`"Camunda Cloud"` → `camunda8`) and registers the same extension so Camunda 8 files parse with 0 warnings.
+
 ---
 
 ## 7. CLI & config
@@ -597,10 +609,16 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
   },
 
   // --- output serialization ---
+  "platform": "camunda7",         // "camunda7" | "camunda8" (§6.6)
   // --- Camunda 7 extensions on <decision> (§6.5) ---
   "camunda": {
     "historyTimeToLive": "P180D", // null → omit; "P180D" or an integer day count
     "versionTag": null            // null → omit; else e.g. "1.0"
+  },
+  // --- Camunda 8 modeler metadata on <definitions> (§6.6); used when platform === "camunda8" ---
+  "camunda8": {
+    "executionPlatform": "Camunda Cloud",
+    "executionPlatformVersion": "8.6.0"
   },
 
   "output": {

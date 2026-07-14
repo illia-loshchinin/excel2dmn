@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/" xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/" id="definitions_SHIPPING_RATES" name="Shipping Rate Decision" namespace="http://camunda.org/schema/1.0/dmn" expressionLanguage="https://www.omg.org/spec/DMN/20191111/FEEL/" typeLanguage="https://www.omg.org/spec/DMN/20191111/FEEL/" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <decision id="SHIPPING_RATES" name="Shipping Rate Decision">
+    <decisionTable id="SHIPPING_RATES_decisionTable" preferredOrientation="Rule-as-Row">
+      <input id="orderTotal" label="Order total">
+        <inputExpression id="orderTotal_expression" typeRef="integer">
+          <text>orderTotal</text>
+        </inputExpression>
+      </input>
+      <input id="region" label="Region">
+        <inputExpression id="region_expression" typeRef="string">
+          <text>region</text>
+        </inputExpression>
+      </input>
+      <input id="isMember" label="Member?">
+        <inputExpression id="isMember_expression" typeRef="boolean">
+          <text>isMember</text>
+        </inputExpression>
+      </input>
+      <input id="weightKg" label="Weight (kg)">
+        <inputExpression id="weightKg_expression" typeRef="double">
+          <text>weightKg</text>
+        </inputExpression>
+      </input>
+      <input id="tags" label="Tags">
+        <inputExpression id="tags_expression">
+          <text>tags</text>
+        </inputExpression>
+      </input>
+      <output id="shippingMethod" label="Shipping method" name="shippingMethod" typeRef="string" />
+      <output id="deliveryDays" label="Delivery days" name="deliveryDays" typeRef="integer" />
+      <rule id="rule_1">
+        <description>standard EU parcel</description>
+        <inputEntry id="orderTotal_1">
+          <text>&lt; 50</text>
+        </inputEntry>
+        <inputEntry id="region_1">
+          <text>"EU"</text>
+        </inputEntry>
+        <inputEntry id="isMember_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="weightKg_1">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="tags_1">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="shippingMethod_1">
+          <text>"STANDARD"</text>
+        </outputEntry>
+        <outputEntry id="deliveryDays_1">
+          <text>5</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_2">
+        <description>EU member express</description>
+        <inputEntry id="orderTotal_2">
+          <text>[50..200)</text>
+        </inputEntry>
+        <inputEntry id="region_2">
+          <text>"EU"</text>
+        </inputEntry>
+        <inputEntry id="isMember_2">
+          <text>true</text>
+        </inputEntry>
+        <inputEntry id="weightKg_2">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="tags_2">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="shippingMethod_2">
+          <text>"EXPRESS"</text>
+        </outputEntry>
+        <outputEntry id="deliveryDays_2">
+          <text>3</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_3">
+        <description>EU heavy freight</description>
+        <inputEntry id="orderTotal_3">
+          <text>&gt;= 200</text>
+        </inputEntry>
+        <inputEntry id="region_3">
+          <text>"EU"</text>
+        </inputEntry>
+        <inputEntry id="isMember_3">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="weightKg_3">
+          <text>&gt; 20</text>
+        </inputEntry>
+        <inputEntry id="tags_3">
+          <text>not(some t in ["fragile"] satisfies t = tag)</text>
+        </inputEntry>
+        <outputEntry id="shippingMethod_3">
+          <text>"FREIGHT"</text>
+        </outputEntry>
+        <outputEntry id="deliveryDays_3">
+          <text>7</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_4">
+        <description>US ground</description>
+        <inputEntry id="orderTotal_4">
+          <text>&lt; 100</text>
+        </inputEntry>
+        <inputEntry id="region_4">
+          <text>"US"</text>
+        </inputEntry>
+        <inputEntry id="isMember_4">
+          <text>false</text>
+        </inputEntry>
+        <inputEntry id="weightKg_4">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="tags_4">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="shippingMethod_4">
+          <text>"STANDARD"</text>
+        </outputEntry>
+        <outputEntry id="deliveryDays_4">
+          <text>8</text>
+        </outputEntry>
+      </rule>
+      <rule id="rule_5">
+        <description>US member express</description>
+        <inputEntry id="orderTotal_5">
+          <text>&gt;= 100</text>
+        </inputEntry>
+        <inputEntry id="region_5">
+          <text>"US"</text>
+        </inputEntry>
+        <inputEntry id="isMember_5">
+          <text>true</text>
+        </inputEntry>
+        <inputEntry id="weightKg_5">
+          <text></text>
+        </inputEntry>
+        <inputEntry id="tags_5">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="shippingMethod_5">
+          <text>"EXPRESS"</text>
+        </outputEntry>
+        <outputEntry id="deliveryDays_5">
+          <text>3</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_SHIPPING_RATES">
+      <dmndi:DMNShape id="DMNShape_SHIPPING_RATES" dmnElementRef="SHIPPING_RATES" isCollapsed="false">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

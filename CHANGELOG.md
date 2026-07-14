@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Camunda 8 output target. Select it with `--platform camunda8` (or `"platform": "camunda8"` in the config). Camunda 8 files carry `modeler:executionPlatform="Camunda Cloud"` / `modeler:executionPlatformVersion` on `<definitions>` and omit the Camunda 7 `historyTimeToLive` / `versionTag` extension attributes. The execution-platform version is configurable via `camunda8.executionPlatformVersion` (default `8.6.0`).
+- Camunda 8 relaxes the Camunda 7 decision-table type restriction, so the full DMN/FEEL type set (`number`, `time`, `dateTime`, durations, …) is accepted.
+- `excel2dmn import` detects the source platform from `modeler:executionPlatform`.
+
 ## [0.1.0] - Unreleased
 
 ### Added
