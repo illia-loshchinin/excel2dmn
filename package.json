@@ -37,6 +37,7 @@
     "src",
     "bin",
     "schema",
+    "excel2dmn.config.example.json",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

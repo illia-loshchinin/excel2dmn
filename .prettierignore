@@ -4,3 +4,5 @@ coverage
 *.dmn
 test/fixtures/*.xlsx
 definitions/*.xlsx
+# Canonical: must stay byte-identical to serializeConfig(DEFAULT_CONFIG) (drift-guarded by test)
+excel2dmn.config.example.json

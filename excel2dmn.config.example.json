@@ -1,0 +1,150 @@
+{
+  "sheet": {
+    "match": "contains",
+    "value": "DMN",
+    "caseInsensitive": true
+  },
+  "header": {
+    "scanRows": 5,
+    "nameOffset": 1,
+    "typeOffset": 2,
+    "labelOffset": 3,
+    "allowedValuesOffset": null
+  },
+  "markers": {
+    "id": "id",
+    "name": "name",
+    "input": "input",
+    "output": "output",
+    "policy": "policy",
+    "annotations": "annotations",
+    "annotationSeparator": " | ",
+    "caseInsensitive": true
+  },
+  "rules": {
+    "startOffset": 4,
+    "detectBy": "input-output",
+    "stopOnEmptyRow": true,
+    "idTemplate": "rule_<n>",
+    "anyInputTokens": [
+      "-",
+      ""
+    ],
+    "emitAnyInputAs": ""
+  },
+  "identity": {
+    "sanitizeId": true,
+    "idCase": "upper",
+    "collisionSuffix": "_"
+  },
+  "hitPolicy": {
+    "default": "UNIQUE",
+    "allowed": [
+      "UNIQUE",
+      "FIRST",
+      "PRIORITY",
+      "ANY",
+      "COLLECT",
+      "RULE ORDER",
+      "OUTPUT ORDER"
+    ],
+    "aggregatorOffset": 2
+  },
+  "types": {
+    "anyKeyword": "any",
+    "anyAliases": [
+      "any",
+      "none",
+      "object"
+    ],
+    "anyDmnPlaceholder": null,
+    "allowed": [
+      "string",
+      "boolean",
+      "number",
+      "integer",
+      "long",
+      "double",
+      "any",
+      "date",
+      "time",
+      "dateTime",
+      "dayTimeDuration",
+      "yearMonthDuration"
+    ],
+    "numeric": [
+      "number",
+      "integer",
+      "long",
+      "double"
+    ],
+    "camundaTypes": [
+      "string",
+      "boolean",
+      "integer",
+      "long",
+      "double",
+      "date"
+    ],
+    "nonCamundaTypeAction": "error",
+    "syntaxOnly": [
+      "date",
+      "time",
+      "dateTime",
+      "dayTimeDuration",
+      "yearMonthDuration"
+    ],
+    "number": {
+      "allowExpressions": true
+    },
+    "string": {
+      "allowExpressions": true
+    },
+    "boolean": {
+      "allowExpressions": false
+    }
+  },
+  "validation": {
+    "feel": {
+      "mode": "all-inputs",
+      "failFast": false
+    },
+    "enforceAllowedValues": false
+  },
+  "outputEntries": {
+    "requireQuotes": true,
+    "autoQuote": false
+  },
+  "camunda": {
+    "historyTimeToLive": "P180D",
+    "versionTag": null
+  },
+  "output": {
+    "namespace": "http://camunda.org/schema/1.0/dmn",
+    "expressionLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
+    "typeLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
+    "namespaceStyle": "default",
+    "shape": {
+      "x": 160,
+      "y": 100,
+      "width": 180,
+      "height": 80
+    },
+    "format": true,
+    "outDir": null,
+    "fileNameTemplate": "<decisionId>.dmn",
+    "writeModelJson": false
+  },
+  "analysis": {
+    "enabled": false,
+    "checks": [
+      "overlap",
+      "duplicate",
+      "shadowed",
+      "gaps"
+    ],
+    "failOn": "none",
+    "format": "text",
+    "gapsMaxCombos": 100000
+  }
+}

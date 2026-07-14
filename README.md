@@ -46,6 +46,10 @@ excel2dmn rules.xlsx --analyze
 # Generate a starter template
 excel2dmn init --name "Shipping Rate Decision" -o shipping_DMN.xlsx
 
+# Generate a config file interactively (step-by-step, with defaults)
+excel2dmn config
+excel2dmn config --defaults        # non-interactive: write the full default config
+
 # Reverse: turn an existing DMN into an editable Excel template
 excel2dmn import existing.dmn -o existing.xlsx
 ```
@@ -82,7 +86,21 @@ See [`SOLUTION_SPEC.md`](./SOLUTION_SPEC.md) for the full contract, and
 
 All markers and rules are configurable via `excel2dmn.config.json` (or `--config`).
 Precedence: CLI flags → `--config` → `./excel2dmn.config.json` → built-in defaults.
-Run `node -e "import('excel2dmn').then(m=>console.log(m.DEFAULT_CONFIG))"` to see every option.
+
+The fastest way to get a config is the interactive generator, which walks you
+through the common settings (and, on request, the advanced ones), showing the
+default for each — press Enter to accept it or type a new value:
+
+```bash
+excel2dmn config                        # step-by-step wizard → excel2dmn.config.json
+excel2dmn config --defaults             # write the full default config, no prompts
+excel2dmn config -o my.config.json      # choose a different output path
+```
+
+By default the wizard writes only the keys you changed (a minimal file); pass
+`--full` to write every key. [`excel2dmn.config.example.json`](./excel2dmn.config.example.json)
+is a checked-in copy of the complete default config you can copy and edit by
+hand. Every field is documented in [`SOLUTION_SPEC.md` §7.1](./SOLUTION_SPEC.md).
 
 ## Development
 

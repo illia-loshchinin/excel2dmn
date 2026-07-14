@@ -15,5 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Readable, deterministic element ids.
 - Static analysis: overlap / duplicate / shadowed / gaps.
 - `excel2dmn init` template generator.
+- `excel2dmn config` interactive config generator (step-by-step wizard with defaults; `--defaults` writes the full default config non-interactively).
+- `excel2dmn.config.example.json` — a complete, ready-to-copy reference config.
 - `excel2dmn import` reverse converter (DMN → xlsx), byte-identical round-trip.
 - Config file + CLI, JSON Schema for the intermediate model.
