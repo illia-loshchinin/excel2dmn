@@ -25,7 +25,7 @@
     "url": "https://github.com/illia-loshchinin/excel2dmn/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.12.0"
   },
   "bin": {
     "excel2dmn": "bin/excel2dmn.js"
