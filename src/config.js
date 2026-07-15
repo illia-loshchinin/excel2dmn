@@ -35,7 +35,10 @@ export const DEFAULT_CONFIG = Object.freeze({
     aggregatorOffset: 2,
   },
   types: {
-    anyKeyword: 'any',
+    // Canonical wildcard type keyword (matches Camunda 8's documented "Any"). Used as
+    // the normalized spelling on reverse import; the legacy spellings below are still
+    // accepted case-insensitively on input.
+    anyKeyword: 'Any',
     // Aliases (matched case-insensitively) all meaning the untyped/"Any" type.
     // Camunda/DMN tools variously emit 'Any', 'none' or 'object' for untyped columns.
     anyAliases: ['any', 'none', 'object'],
@@ -51,7 +54,7 @@ export const DEFAULT_CONFIG = Object.freeze({
       'integer', // Camunda numeric types
       'long',
       'double',
-      'any',
+      'Any',
       'date',
       'time',
       'dateTime',

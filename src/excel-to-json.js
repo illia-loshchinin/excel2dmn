@@ -157,7 +157,7 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
 
     if (cfg.validation.feel.mode !== 'off') {
       inputs.forEach((d, i) => {
-        if (cfg.validation.feel.mode === 'any-inputs' && d.typeRef !== cfg.types.anyKeyword) return;
+        if (cfg.validation.feel.mode === 'any-inputs' && !isAnyType(d.typeRef, cfg)) return;
         const err = check(inputEntries[i], d.typeRef, 'unary');
         if (err) problems.add(`input '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
       });
