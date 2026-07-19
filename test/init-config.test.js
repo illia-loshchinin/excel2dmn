@@ -44,6 +44,7 @@ const INTENTIONALLY_UNPROMPTED = {
   'types.anyDmnPlaceholder': 'untyped typeRef emission detail; deep type tuning',
   'types.allowed': 'the fixed DMN/FEEL type vocabulary',
   'types.numeric': 'derived type grouping',
+  'types.camunda8NumericAlias': 'deep type tuning; C8 numeric normalization target',
   'types.camundaTypes': 'fixed Camunda capability set',
   'types.syntaxOnly': 'fixed type grouping',
   'types.number.allowExpressions': 'deep FEEL tuning',

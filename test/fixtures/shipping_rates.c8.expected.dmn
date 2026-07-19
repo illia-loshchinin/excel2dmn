@@ -3,7 +3,7 @@
   <decision id="SHIPPING_RATES" name="Shipping Rate Decision">
     <decisionTable id="SHIPPING_RATES_decisionTable" preferredOrientation="Rule-as-Row">
       <input id="orderTotal" label="Order total">
-        <inputExpression id="orderTotal_expression" typeRef="integer">
+        <inputExpression id="orderTotal_expression" typeRef="number">
           <text>orderTotal</text>
         </inputExpression>
       </input>
@@ -18,7 +18,7 @@
         </inputExpression>
       </input>
       <input id="weightKg" label="Weight (kg)">
-        <inputExpression id="weightKg_expression" typeRef="double">
+        <inputExpression id="weightKg_expression" typeRef="number">
           <text>weightKg</text>
         </inputExpression>
       </input>
@@ -28,7 +28,7 @@
         </inputExpression>
       </input>
       <output id="shippingMethod" label="Shipping method" name="shippingMethod" typeRef="string" />
-      <output id="deliveryDays" label="Delivery days" name="deliveryDays" typeRef="integer" />
+      <output id="deliveryDays" label="Delivery days" name="deliveryDays" typeRef="number" />
       <rule id="rule_1">
         <description>standard EU parcel</description>
         <inputEntry id="orderTotal_1">

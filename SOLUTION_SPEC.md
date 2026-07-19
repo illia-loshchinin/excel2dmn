@@ -479,7 +479,7 @@ Setting `platform` to `"camunda8"` (config or `--platform camunda8`; default is 
 
 - Adds `modeler:executionPlatform="Camunda Cloud"` and `modeler:executionPlatformVersion` (config `camunda8.executionPlatformVersion`, default `"8.6.0"`) as attributes on `<definitions>`, via an inline `modeler` moddle extension (`http://camunda.org/schema/modeler/1.0`).
 - **Omits** the Camunda 7 `camunda:historyTimeToLive` / `camunda:versionTag` attributes (unsupported in Camunda 8 DMN). Because moddle only declares a namespace it actually uses, `xmlns:camunda` disappears and `xmlns:modeler` appears — the two never co-occur, so Camunda 7 output stays byte-identical.
-- Relaxes the Camunda 7 `types.camundaTypes` restriction (§5): Camunda 8's FEEL engine supports the full DMN/FEEL type set, so `number`, `time`, `dateTime`, and the duration types pass without warning.
+- Relaxes the Camunda 7 `types.camundaTypes` restriction (§5): Camunda 8's FEEL engine supports the full DMN/FEEL type set, so `number`, `time`, `dateTime`, and the duration types pass without warning. Camunda 8's type set has **no** `integer`/`long`/`double` (only `number`), so those C7-only numeric typeRefs are normalized to `number` on C8 output (`types.camunda8NumericAlias`, default `number`; set to `null` to emit them unchanged). C7 templates therefore convert to valid C8 without edits; C7 output is untouched.
 - The default-namespace post-process (§6.3) rewrites only `dmn:` tags, so the `modeler:` attribute prefix and `xmlns:modeler` pass through untouched.
 - Everything else — decisionTable, inputs/outputs, rules, DMNDI — is identical standard DMN 1.3.
 

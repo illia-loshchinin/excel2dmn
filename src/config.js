@@ -63,6 +63,9 @@ export const DEFAULT_CONFIG = Object.freeze({
     ],
     // typeRefs validated with the numeric rules (NumericLiteral)
     numeric: ['number', 'integer', 'long', 'double'],
+    // Camunda 8's type set has no integer/long/double — only 'number'. On C8 output the
+    // other numeric typeRefs are normalized to this. null → emit them unchanged.
+    camunda8NumericAlias: 'number',
     // Types Camunda's decision-table editor/engine supports (plus 'any' = untyped).
     camundaTypes: ['string', 'boolean', 'integer', 'long', 'double', 'date'],
     // What to do when a typeRef is valid DMN/FEEL but NOT a Camunda type (e.g. 'number',

@@ -19,6 +19,11 @@ function typeRefAttr(typeRef, cfg) {
     const placeholder = cfg.types.anyDmnPlaceholder;
     return placeholder ? { typeRef: placeholder } : {};
   }
+  // Camunda 8 has no integer/long/double — normalize them to its numeric type so C8
+  // output matches the platform's type set. C7 output is untouched.
+  const alias = cfg.types.camunda8NumericAlias;
+  if (cfg.platform === 'camunda8' && alias && cfg.types.numeric.includes(typeRef) && typeRef !== alias)
+    return { typeRef: alias };
   return { typeRef };
 }
 

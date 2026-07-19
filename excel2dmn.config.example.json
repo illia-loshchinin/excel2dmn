@@ -78,6 +78,7 @@
       "long",
       "double"
     ],
+    "camunda8NumericAlias": "number",
     "camundaTypes": [
       "string",
       "boolean",
