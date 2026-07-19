@@ -12,6 +12,13 @@ describe('config', () => {
     const cfg = loadConfig({ overrides: { markers: { id: 'KEY' } } });
     expect(cfg.markers.id).toBe('KEY');
   });
+  it('accepts the two valid platforms', () => {
+    expect(loadConfig({ overrides: { platform: 'camunda7' } }).platform).toBe('camunda7');
+    expect(loadConfig({ overrides: { platform: 'camunda8' } }).platform).toBe('camunda8');
+  });
+  it('rejects an unknown platform value', () => {
+    expect(() => loadConfig({ overrides: { platform: 'c8' } })).toThrow(/Invalid platform/);
+  });
 });
 
 describe('ids', () => {

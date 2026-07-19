@@ -150,5 +150,8 @@ export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } =
       throw new Error(`Failed to read config ${path}: ${err.message}`);
     }
   }
-  return deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
+  const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
+  if (!['camunda7', 'camunda8'].includes(merged.platform))
+    throw new Error(`Invalid platform '${merged.platform}' (expected 'camunda7' or 'camunda8')`);
+  return merged;
 }

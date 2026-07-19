@@ -65,6 +65,14 @@ describe('Camunda 8 numeric normalization', () => {
     expect(xml).not.toContain('typeRef="double"');
   });
 
+  it('normalizes long to number in C8 output', async () => {
+    const model = await firstModel('shipping_rates_DMN.xlsx', c8);
+    model.decisions[0].inputs[0].typeRef = 'long'; // orderTotal → long
+    const xml = await buildDmn(model, c8);
+    expect(xml).toContain('typeRef="number"');
+    expect(xml).not.toContain('typeRef="long"');
+  });
+
   it('leaves integer/double untouched under Camunda 7', async () => {
     const c7 = loadConfig({});
     const xml = await buildDmn(await firstModel('shipping_rates_DMN.xlsx', c7), c7);

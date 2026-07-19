@@ -78,8 +78,9 @@ export async function dmnToModels(xml, cfg) {
         historyTimeToLive: dec.historyTimeToLive || null,
         versionTag: dec.versionTag || null,
       },
-      // Detected target platform: Camunda 8 files carry modeler:executionPlatform="Camunda Cloud".
-      __platform: defs.executionPlatform === 'Camunda Cloud' ? 'camunda8' : 'camunda7',
+      // Detected target platform: Camunda 8 files carry modeler:executionPlatform="Camunda Cloud"
+      // (C7 modeler files carry "Camunda Platform"), so match on "Cloud" rather than presence.
+      __platform: /cloud/i.test(defs.executionPlatform || '') ? 'camunda8' : 'camunda7',
       __camunda8: {
         executionPlatform: defs.executionPlatform || null,
         executionPlatformVersion: defs.executionPlatformVersion || null,

@@ -64,9 +64,11 @@ export async function convert(inputPath, options = {}) {
 }
 
 function stripInternal(model) {
-  const { __sheet, __warnings, ...rest } = model;
+  const { __sheet, __warnings, __platform, __camunda8, ...rest } = model;
   void __sheet;
   void __warnings;
+  void __platform;
+  void __camunda8;
   return rest;
 }
 

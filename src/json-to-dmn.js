@@ -19,8 +19,9 @@ function typeRefAttr(typeRef, cfg) {
     const placeholder = cfg.types.anyDmnPlaceholder;
     return placeholder ? { typeRef: placeholder } : {};
   }
-  // Camunda 8 has no integer/long/double — normalize them to its numeric type so C8
-  // output matches the platform's type set. C7 output is untouched.
+  // Camunda 8's FEEL engine accepts the full type set on input, but its decision-table
+  // editor's only numeric type is `number` — so C7-only integer/long/double are rewritten
+  // to it on C8 output (opt out with types.camunda8NumericAlias: null). C7 is untouched.
   const alias = cfg.types.camunda8NumericAlias;
   if (cfg.platform === 'camunda8' && alias && cfg.types.numeric.includes(typeRef) && typeRef !== alias)
     return { typeRef: alias };
