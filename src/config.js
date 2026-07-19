@@ -35,7 +35,10 @@ export const DEFAULT_CONFIG = Object.freeze({
     aggregatorOffset: 2,
   },
   types: {
-    anyKeyword: 'any',
+    // Canonical wildcard type keyword (matches Camunda 8's documented "Any"). Used as
+    // the normalized spelling on reverse import; the legacy spellings below are still
+    // accepted case-insensitively on input.
+    anyKeyword: 'Any',
     // Aliases (matched case-insensitively) all meaning the untyped/"Any" type.
     // Camunda/DMN tools variously emit 'Any', 'none' or 'object' for untyped columns.
     anyAliases: ['any', 'none', 'object'],
@@ -51,7 +54,7 @@ export const DEFAULT_CONFIG = Object.freeze({
       'integer', // Camunda numeric types
       'long',
       'double',
-      'any',
+      'Any',
       'date',
       'time',
       'dateTime',
@@ -60,6 +63,9 @@ export const DEFAULT_CONFIG = Object.freeze({
     ],
     // typeRefs validated with the numeric rules (NumericLiteral)
     numeric: ['number', 'integer', 'long', 'double'],
+    // Camunda 8's type set has no integer/long/double — only 'number'. On C8 output the
+    // other numeric typeRefs are normalized to this. null → emit them unchanged.
+    camunda8NumericAlias: 'number',
     // Types Camunda's decision-table editor/engine supports (plus 'any' = untyped).
     camundaTypes: ['string', 'boolean', 'integer', 'long', 'double', 'date'],
     // What to do when a typeRef is valid DMN/FEEL but NOT a Camunda type (e.g. 'number',
@@ -72,7 +78,13 @@ export const DEFAULT_CONFIG = Object.freeze({
   },
   validation: { feel: { mode: 'all-inputs', failFast: false }, enforceAllowedValues: false },
   outputEntries: { requireQuotes: true, autoQuote: false },
+  // Target platform: 'camunda7' (DMN 1.3 + camunda: extension attrs, the default)
+  // or 'camunda8' (Zeebe/SaaS: modeler execution-platform metadata, no camunda: attrs).
+  platform: 'camunda7',
+  // Camunda 7 extension attributes emitted on <decision>.
   camunda: { historyTimeToLive: 'P180D', versionTag: null },
+  // Camunda 8 modeler metadata emitted on <definitions> when platform === 'camunda8'.
+  camunda8: { executionPlatform: 'Camunda Cloud', executionPlatformVersion: '8.6.0' },
   output: {
     namespace: 'http://camunda.org/schema/1.0/dmn',
     expressionLanguage: 'https://www.omg.org/spec/DMN/20191111/FEEL/',
@@ -138,5 +150,8 @@ export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } =
       throw new Error(`Failed to read config ${path}: ${err.message}`);
     }
   }
-  return deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
+  const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
+  if (!['camunda7', 'camunda8'].includes(merged.platform))
+    throw new Error(`Invalid platform '${merged.platform}' (expected 'camunda7' or 'camunda8')`);
+  return merged;
 }

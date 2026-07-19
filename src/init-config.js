@@ -103,6 +103,14 @@ export const PROMPTS = [
   },
 
   {
+    section: 'Platform',
+    path: 'platform',
+    type: 'enum',
+    choices: ['camunda7', 'camunda8'],
+    label: 'Target platform',
+  },
+
+  {
     section: 'Hit policy',
     path: 'hitPolicy.default',
     type: 'enum',
@@ -227,6 +235,14 @@ export const PROMPTS = [
     path: 'camunda.versionTag',
     type: 'nullable-string',
     label: 'versionTag (null = omit)',
+    advanced: true,
+  },
+
+  {
+    section: 'Camunda 8',
+    path: 'camunda8.executionPlatformVersion',
+    type: 'string',
+    label: 'Camunda 8 execution platform version',
     advanced: true,
   },
 

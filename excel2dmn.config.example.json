@@ -51,7 +51,7 @@
     "aggregatorOffset": 2
   },
   "types": {
-    "anyKeyword": "any",
+    "anyKeyword": "Any",
     "anyAliases": [
       "any",
       "none",
@@ -65,7 +65,7 @@
       "integer",
       "long",
       "double",
-      "any",
+      "Any",
       "date",
       "time",
       "dateTime",
@@ -78,6 +78,7 @@
       "long",
       "double"
     ],
+    "camunda8NumericAlias": "number",
     "camundaTypes": [
       "string",
       "boolean",
@@ -115,9 +116,14 @@
     "requireQuotes": true,
     "autoQuote": false
   },
+  "platform": "camunda7",
   "camunda": {
     "historyTimeToLive": "P180D",
     "versionTag": null
+  },
+  "camunda8": {
+    "executionPlatform": "Camunda Cloud",
+    "executionPlatformVersion": "8.6.0"
   },
   "output": {
     "namespace": "http://camunda.org/schema/1.0/dmn",

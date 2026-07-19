@@ -44,10 +44,10 @@ describe('untyped "any" aliases', () => {
       expect(isAnyType(v, cfg)).toBe(false);
   });
 
-  it('import normalizes typeRef aliases (Any/Object) to canonical "any"', async () => {
+  it('import normalizes typeRef aliases (Any/Object) to canonical "Any"', async () => {
     const [model] = await dmnToModels(DMN_WITH_ALIASES, cfg);
-    expect(model.decisions[0].inputs[0].typeRef).toBe('any');
-    expect(model.decisions[0].outputs[0].typeRef).toBe('any');
+    expect(model.decisions[0].inputs[0].typeRef).toBe('Any');
+    expect(model.decisions[0].outputs[0].typeRef).toBe('Any');
   });
 
   it('accepts aliases typed directly in the Excel type row and omits typeRef on export', async () => {
@@ -71,6 +71,32 @@ describe('untyped "any" aliases', () => {
     expect(xml).toContain('typeRef="string"');
   });
 
+  it('writes the canonical "Any" into the Excel type cell on reverse import', async () => {
+    const [model] = await dmnToModels(DMN_WITH_ALIASES, cfg);
+    const out = join(tmpdir(), `any-canonical-${process.pid}.xlsx`);
+    await modelsToWorkbook([model], cfg, out);
+    // Read the type cells back: parseWorkbook returns the raw type-row text.
+    const [reparsed] = await parseWorkbook(out, cfg);
+    rmSync(out, { force: true });
+    expect(reparsed.decisions[0].inputs[0].typeRef).toBe('Any');
+    expect(reparsed.decisions[0].outputs[0].typeRef).toBe('Any');
+  });
+
+  it('validates an "Any"/alias-typed input in any-inputs FEEL mode', async () => {
+    // any-inputs mode validates only wildcard-typed inputs; a broken unary expression
+    // in an alias-typed ("Object") column must still be caught (guard uses isAnyType).
+    const anyInputsCfg = loadConfig({ overrides: { validation: { feel: { mode: 'any-inputs' } } } });
+    const golden = readFileSync(fx('shipping_rates.expected.dmn'), 'utf8');
+    const [model] = await dmnToModels(golden, anyInputsCfg);
+    model.decisions[0].inputs[0].typeRef = 'Object'; // orderTotal → wildcard alias
+    model.decisions[0].rules[0].inputEntries[0] = '< ='; // invalid unary FEEL
+
+    const out = join(tmpdir(), `any-inputs-${process.pid}.xlsx`);
+    await modelsToWorkbook([model], anyInputsCfg, out);
+    await expect(parseWorkbook(out, anyInputsCfg)).rejects.toThrow(/orderTotal/);
+    rmSync(out, { force: true });
+  });
+
   it('omits typeRef for any-typed columns by default', async () => {
     const [model] = await dmnToModels(DMN_WITH_ALIASES, cfg);
     const xml = await buildDmn(model, cfg);
@@ -84,9 +110,9 @@ describe('untyped "any" aliases', () => {
     const xml = await buildDmn(model, placeholderCfg);
     expect(xml).toContain('<inputExpression id="foo_expression" typeRef="Any">');
     expect(xml).toContain('<output id="bar" label="Bar" name="bar" typeRef="Any" />');
-    // The placeholder still round-trips back to canonical "any" on re-import.
+    // The placeholder still round-trips back to canonical "Any" on re-import.
     const [reimported] = await dmnToModels(xml, cfg);
-    expect(reimported.decisions[0].inputs[0].typeRef).toBe('any');
-    expect(reimported.decisions[0].outputs[0].typeRef).toBe('any');
+    expect(reimported.decisions[0].inputs[0].typeRef).toBe('Any');
+    expect(reimported.decisions[0].outputs[0].typeRef).toBe('Any');
   });
 });

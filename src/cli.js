@@ -1,5 +1,5 @@
 // Command-line interface. Spec §7.
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { resolve } from 'node:path';
 import { existsSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
@@ -13,6 +13,7 @@ import { ConversionError } from './errors.js';
 function buildOverrides(opts) {
   const o = {};
   if (opts.hitPolicy) o.hitPolicy = { default: opts.hitPolicy };
+  if (opts.platform) o.platform = opts.platform;
   if (opts.namespace) o.output = { ...(o.output || {}), namespace: opts.namespace };
   if (opts.outDir) o.output = { ...(o.output || {}), outDir: resolve(opts.outDir) };
   if (opts.pretty === false) o.output = { ...(o.output || {}), format: false };
@@ -64,8 +65,10 @@ async function convertAction(input, opts) {
 async function importAction(input, opts) {
   const cfg = loadConfig({ configPath: opts.config });
   const out = opts.out ? resolve(opts.out) : undefined;
-  const { path, models } = await importDmn(resolve(input), { config: cfg, out });
+  const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
+  if (platform === 'camunda8')
+    console.log(`  ℹ detected Camunda 8 — re-convert with: excel2dmn ${path} --platform camunda8`);
 }
 
 async function initAction(opts) {
@@ -108,7 +111,7 @@ export function buildProgram() {
   const program = new Command();
   program
     .name('excel2dmn')
-    .description('Convert pre-formatted Excel decision tables into Camunda 7 DMN 1.3 files.')
+    .description('Convert pre-formatted Excel decision tables into Camunda 7 or 8 DMN 1.3 files.')
     .version('0.1.0');
 
   program
@@ -120,6 +123,9 @@ export function buildProgram() {
     .option('-j, --json', 'also write <decisionId>.model.json per sheet')
     .option('--config <file>', 'config JSON file')
     .option('--sheet <name...>', 'restrict to these sheet name(s)')
+    .addOption(
+      new Option('--platform <name>', 'target platform').choices(['camunda7', 'camunda8']),
+    )
     .option('--hit-policy <p>', 'fallback hit policy')
     .option('--namespace <uri>', 'definitions target namespace')
     .option('--analyze', 'run static analysis (overlap/gaps/duplicates)')
