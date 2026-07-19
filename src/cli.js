@@ -65,8 +65,10 @@ async function convertAction(input, opts) {
 async function importAction(input, opts) {
   const cfg = loadConfig({ configPath: opts.config });
   const out = opts.out ? resolve(opts.out) : undefined;
-  const { path, models } = await importDmn(resolve(input), { config: cfg, out });
+  const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
+  if (platform === 'camunda8')
+    console.log(`  ℹ detected Camunda 8 — re-convert with: excel2dmn ${path} --platform camunda8`);
 }
 
 async function initAction(opts) {

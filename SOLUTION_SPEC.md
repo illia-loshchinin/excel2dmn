@@ -483,7 +483,7 @@ Setting `platform` to `"camunda8"` (config or `--platform camunda8`; default is 
 - The default-namespace post-process (§6.3) rewrites only `dmn:` tags, so the `modeler:` attribute prefix and `xmlns:modeler` pass through untouched.
 - Everything else — decisionTable, inputs/outputs, rules, DMNDI — is identical standard DMN 1.3.
 
-Reverse `import` (§16) detects the source platform from `modeler:executionPlatform` (`"Camunda Cloud"` → `camunda8`) and registers the same extension so Camunda 8 files parse with 0 warnings.
+Reverse `import` (§16) detects the source platform from `modeler:executionPlatform` (`"Camunda Cloud"` → `camunda8`) and registers the same extension so Camunda 8 files parse with 0 warnings. The detected platform is returned from `importDmn` and surfaced by the CLI as a hint. Note the generated `.xlsx` template does **not** carry the platform, so a Camunda 8 round-trip is a two-step: `import` then re-convert with `--platform camunda8` (otherwise the default Camunda 7 type check rejects C8-only types such as `number`).
 
 ---
 

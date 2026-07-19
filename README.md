@@ -57,6 +57,11 @@ excel2dmn config --defaults        # non-interactive: write the full default con
 excel2dmn import existing.dmn -o existing.xlsx
 ```
 
+> **Camunda 8 round-trip:** the Excel template does not carry the platform, so when
+> `import` detects a Camunda 8 source it prints a hint to re-convert with
+> `--platform camunda8`. Pass that flag on the way back so C8-only types (e.g. `number`)
+> aren't rejected by the default Camunda 7 type check.
+
 ### Programmatic API
 
 ```js

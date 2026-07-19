@@ -91,7 +91,10 @@ export async function importDmn(dmnPath, options = {}) {
       : cfg;
   const out = options.out || (dmnPath ? dmnPath.replace(/\.dmn$/i, '.xlsx') : 'decision_DMN.xlsx');
   if (options.write !== false) await modelsToWorkbook(models, writeCfg, out);
-  return { path: out, models, config: writeCfg };
+  // Platform detected from the source DMN's modeler metadata (§6.6). Surfaced so callers
+  // (and the CLI) can re-convert the produced template with the matching --platform.
+  const platform = models.some((m) => m.__platform === 'camunda8') ? 'camunda8' : 'camunda7';
+  return { path: out, models, config: writeCfg, platform };
 }
 
 export { basename, extname }; // re-export path helpers used by the CLI
