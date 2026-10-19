@@ -70,6 +70,20 @@ import { convert, parseWorkbook, buildDmn, loadConfig } from 'excel2dmn';
 const { results, problems } = await convert('rules.xlsx', { config: loadConfig({}) });
 ```
 
+`dmnToModels` reports the source platform it detects on each model as `model.__platform`
+(`'camunda7'` or `'camunda8'`), but `buildDmn` always builds for the platform in the config
+you pass — it never switches on its own. To rebuild a parsed DMN for the platform it came
+from, pass the detected value explicitly:
+
+```js
+import { readFileSync } from 'node:fs';
+import { dmnToModels, buildDmn, loadConfig } from 'excel2dmn';
+
+const [model] = await dmnToModels(readFileSync('c8.dmn', 'utf8'), loadConfig({}));
+const cfg = loadConfig({ overrides: { platform: model.__platform } });
+const xml = await buildDmn(model, cfg);
+```
+
 ## The sheet template
 
 Only sheets whose **name contains `DMN`** are processed. Each is described by a
