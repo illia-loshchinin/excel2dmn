@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import ExcelJS from 'exceljs';
 import { parseWorkbook, buildDmn, reparse, loadConfig, dmnToModels } from '../src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -104,6 +106,32 @@ describe('Camunda 8 type relaxation', () => {
       /not a Camunda type/,
     );
   });
+});
+
+describe('Camunda 8 hit policies', () => {
+  // Copy of the shipping fixture with only the policy cell (A2) changed.
+  async function withPolicy(policy) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(fx('shipping_rates_DMN.xlsx'));
+    wb.worksheets[0].getCell('A2').value = policy;
+    const out = join(mkdtempSync(join(tmpdir(), 'excel2dmn-')), `${policy}_DMN.xlsx`);
+    await wb.xlsx.writeFile(out);
+    return out;
+  }
+
+  it.each(['PRIORITY', 'OUTPUT ORDER'])('rejects %s under Camunda 8', async (policy) => {
+    await expect(parseWorkbook(await withPolicy(policy), c8)).rejects.toThrow(
+      /not supported by Camunda 8/,
+    );
+  });
+
+  it.each(['UNIQUE', 'FIRST', 'ANY', 'RULE ORDER', 'COLLECT'])(
+    'accepts %s under Camunda 8',
+    async (policy) => {
+      const [model] = await parseWorkbook(await withPolicy(policy), c8);
+      expect(model.decisions[0].hitPolicy).toBe(policy);
+    },
+  );
 });
 
 describe('Camunda 8 reverse detection', () => {

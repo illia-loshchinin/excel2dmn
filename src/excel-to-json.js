@@ -128,6 +128,9 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     aggregation = cellText(ws, M + cfg.hitPolicy.aggregatorOffset, policyCol.col) || null;
   if (!cfg.hitPolicy.allowed.map((h) => h.toUpperCase()).includes(hitPolicy))
     problems.add(`unknown hit policy '${hitPolicy}'`);
+  // Camunda 8 does not implement the PRIORITY / OUTPUT ORDER hit policies.
+  else if (cfg.platform === 'camunda8' && ['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy))
+    problems.add(`hit policy '${hitPolicy}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`);
 
   if (['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy)) {
     for (const o of outputs)
