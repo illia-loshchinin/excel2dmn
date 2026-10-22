@@ -2,7 +2,7 @@
 // Zero external deps: prompts via Node's built-in readline/promises.
 // Everything derives from DEFAULT_CONFIG so the wizard can never drift.
 import { createInterface } from 'node:readline/promises';
-import { DEFAULT_CONFIG, deepMerge } from './config.js';
+import { DEFAULT_CONFIG, deepMerge, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
 
 /** Read a value from a nested object by dot-path (e.g. 'markers.id'). */
 export function getPath(obj, path) {
@@ -313,6 +313,13 @@ export function promptChoices(spec) {
   return spec.choices;
 }
 
+/** Narrow a prompt by earlier answers: Camunda 8 offers only the hit policies it supports. */
+export function specForAnswers(spec, answers) {
+  if (spec.path !== 'hitPolicy.default' || answers.platform !== 'camunda8') return spec;
+  const choices = promptChoices(spec).filter((p) => !C8_UNSUPPORTED_HIT_POLICIES.includes(p));
+  return { ...spec, choicesFrom: undefined, choices };
+}
+
 function fmtDefault(v) {
   if (v === null) return 'null';
   if (Array.isArray(v)) return v.join(',');
@@ -445,7 +452,7 @@ export async function buildConfig({
         section = spec.section;
         write(`\n— ${section} —\n`);
       }
-      const value = await ask(promptFn, write, spec);
+      const value = await ask(promptFn, write, specForAnswers(spec, overrides));
       if (spec.special === 'allowedValues') {
         if (value) apply(ALLOWED_VALUES_OVERRIDE);
       } else {

@@ -12,6 +12,7 @@ import {
   parseAnswer,
   promptDefault,
   promptChoices,
+  specForAnswers,
   getPath,
 } from '../src/init-config.js';
 
@@ -198,9 +199,23 @@ describe('interactive wizard', () => {
   });
 
   it('full mode returns a config that merges cleanly over defaults', async () => {
-    const cfg = await runWizard([...acceptAllEssentials, '', '', 'FIRST', '', '', 'n'], { full: true });
+    const cfg = await runWizard([...acceptAllEssentials, '', '', 'FIRST', '', '', 'n'], {
+      full: true,
+    });
     expect(cfg.hitPolicy.default).toBe('FIRST');
     expect(cfg.markers.id).toBe('id'); // untouched default present in full mode
     expect(deepMerge(DEFAULT_CONFIG, cfg)).toEqual(cfg); // already a full config
+  });
+
+  it('offers only Camunda 8-supported hit policies once camunda8 is chosen', () => {
+    const spec = PROMPTS.find((s) => s.path === 'hitPolicy.default');
+    const c8Choices = promptChoices(specForAnswers(spec, { platform: 'camunda8' }));
+    expect(c8Choices).not.toContain('PRIORITY');
+    expect(c8Choices).not.toContain('OUTPUT ORDER');
+    expect(c8Choices).toContain(promptDefault(spec));
+    expect(promptChoices(specForAnswers(spec, {}))).toContain('PRIORITY');
+    expect(
+      parseAnswer(specForAnswers(spec, { platform: 'camunda8' }), 'PRIORITY', 'UNIQUE'),
+    ).toHaveProperty('error');
   });
 });

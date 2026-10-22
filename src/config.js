@@ -156,5 +156,10 @@ export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } =
   const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
   if (!['camunda7', 'camunda8'].includes(merged.platform))
     throw new Error(`Invalid platform '${merged.platform}' (expected 'camunda7' or 'camunda8')`);
+  const fallback = String(merged.hitPolicy.default).toUpperCase();
+  if (merged.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(fallback))
+    throw new Error(
+      `hitPolicy.default '${merged.hitPolicy.default}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`,
+    );
   return merged;
 }
