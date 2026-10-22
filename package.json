@@ -40,7 +40,8 @@
     "excel2dmn.config.example.json",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "THIRD-PARTY-NOTICES.txt"
   ],
   "publishConfig": {
     "access": "public",
@@ -55,9 +56,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "licenses": "license-checker --production --summary",
-    "licenses:check": "license-checker --production --onlyAllow 'MIT;MIT*;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;Unlicense;CC0-1.0;(MIT OR GPL-3.0-or-later);(MIT AND Zlib);(WTFPL OR MIT)' --excludePackages 'excel2dmn@0.1.0;buffers@0.1.1'",
-    "licenses:notices": "license-checker --production --customPath .license-format.json --out THIRD-PARTY-NOTICES.txt",
-    "prepublishOnly": "npm run lint && npm test"
+    "licenses:check": "license-checker --production --onlyAllow 'MIT;MIT*;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;Unlicense;CC0-1.0;(MIT OR GPL-3.0-or-later);(MIT AND Zlib);(WTFPL OR MIT)' --excludePackages 'buffers@0.1.1'",
+    "licenses:notices": "node scripts/third-party-notices.js",
+    "prepublishOnly": "npm run lint && npm test && npm run licenses:notices"
   },
   "dependencies": {
     "ajv": "^8.17.1",

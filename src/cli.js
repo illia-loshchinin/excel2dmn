@@ -1,7 +1,7 @@
 // Command-line interface. Spec §7.
 import { Command } from 'commander';
 import { resolve } from 'node:path';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig } from './config.js';
 import { convert, importDmn } from './index.js';
@@ -9,6 +9,8 @@ import { writeTemplate } from './init-template.js';
 import { buildConfig, serializeConfig } from './init-config.js';
 import { formatAnalysis } from './analyze.js';
 import { ConversionError } from './errors.js';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 function buildOverrides(opts) {
   const o = {};
@@ -109,7 +111,7 @@ export function buildProgram() {
   program
     .name('excel2dmn')
     .description('Convert pre-formatted Excel decision tables into Camunda 7 DMN 1.3 files.')
-    .version('0.1.0');
+    .version(version);
 
   program
     .command('convert', { isDefault: true })

@@ -27,11 +27,11 @@ tab; a green check means the new version is live on npm.
 
 Follow [semantic versioning](https://semver.org/):
 
-| Command             | Example        | Use when                                             |
-| ------------------- | -------------- | ---------------------------------------------------- |
-| `npm version patch` | 0.1.0 -> 0.1.1 | Bug fixes, docs, internal changes; no API change     |
-| `npm version minor` | 0.1.1 -> 0.2.0 | New backwards-compatible features or config options  |
-| `npm version major` | 0.2.0 -> 1.0.0 | Breaking changes to the CLI, config, or output       |
+| Command             | Example        | Use when                                            |
+| ------------------- | -------------- | --------------------------------------------------- |
+| `npm version patch` | 0.1.0 -> 0.1.1 | Bug fixes, docs, internal changes; no API change    |
+| `npm version minor` | 0.1.1 -> 0.2.0 | New backwards-compatible features or config options |
+| `npm version major` | 0.2.0 -> 1.0.0 | Breaking changes to the CLI, config, or output      |
 
 `npm version` requires a **clean working tree** (commit or stash first). It
 edits `package.json`, commits that change, and creates the `vX.Y.Z` tag in one
@@ -42,11 +42,13 @@ step, so the tag and the published version always match.
 Triggered by a `v*` tag, on a fresh Ubuntu runner:
 
 1. **Checkout** the repo at the tagged commit.
-2. **Setup Node 20** pointed at the public npm registry.
+2. **Setup Node 22** pointed at the public npm registry.
 3. **`npm install -g npm@latest`** — Trusted Publishing needs npm >= 11.5.1.
 4. **`npm ci`** — clean, exact install from `package-lock.json`.
 5. **`npm run lint && npm test`** — if either fails, the job stops and nothing
    is published. This is the safety gate.
+   (`npm publish` also runs `prepublishOnly`, which repeats lint and tests and
+   generates `THIRD-PARTY-NOTICES.txt` for the package.)
 6. **`npm publish --access public`** — publishes to npm. The runner's OIDC
    identity is verified against the package's Trusted Publisher config, and a
    provenance attestation is generated automatically (`publishConfig.provenance`
@@ -56,8 +58,11 @@ Triggered by a `v*` tag, on a fresh Ubuntu runner:
 
 - [ ] Tests pass locally: `npm test`
 - [ ] Lint is clean: `npm run lint`
+- [ ] Formatting is clean: `npm run format:check`
 - [ ] Production dependencies are clean: `npm audit --omit=dev`
-- [ ] `CHANGELOG.md` has an entry for the new version
+- [ ] `CHANGELOG.md`: rename `[Unreleased]` to the new version with today's date,
+      add a fresh empty `[Unreleased]`, and update the compare links at the bottom
+- [ ] `npm pack --dry-run` lists only the intended files
 - [ ] Working tree is clean (`git status`)
 - [ ] The version you're about to publish does **not** already exist on npm
 
