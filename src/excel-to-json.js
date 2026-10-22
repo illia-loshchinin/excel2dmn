@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { toNcNameId, cellRef, dedupe } from './ids.js';
 import { ProblemCollector } from './errors.js';
 import { createEntryValidator, isStringLiteral } from './feel-validate.js';
-import { isAnyType } from './config.js';
+import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
 
 function cellText(ws, row, col) {
   const cell = ws.getCell(row, col);
@@ -129,7 +129,7 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   if (!cfg.hitPolicy.allowed.map((h) => h.toUpperCase()).includes(hitPolicy))
     problems.add(`unknown hit policy '${hitPolicy}'`);
   // Camunda 8 does not implement the PRIORITY / OUTPUT ORDER hit policies.
-  else if (cfg.platform === 'camunda8' && ['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy))
+  else if (cfg.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(hitPolicy))
     problems.add(`hit policy '${hitPolicy}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`);
 
   if (['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy)) {

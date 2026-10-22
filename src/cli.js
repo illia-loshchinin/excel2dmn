@@ -72,10 +72,17 @@ async function importAction(input, opts) {
   const out = opts.out ? resolve(opts.out) : undefined;
   const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
-  if (platform === 'camunda8')
+  if (platform === 'camunda8') {
     console.log(
       `  ℹ detected Camunda 8 — re-convert with: excel2dmn ${shellQuote(path)} --platform camunda8`,
     );
+    // The workbook does not carry the target version, so point out when re-converting would change it.
+    const version = models.map((m) => m.__camunda8?.executionPlatformVersion).find(Boolean);
+    if (version && version !== cfg.camunda8.executionPlatformVersion)
+      console.log(
+        `  ℹ source targets Camunda ${version}; to keep it, set "camunda8": { "executionPlatformVersion": "${version}" } in your config`,
+      );
+  }
 }
 
 async function initAction(opts) {

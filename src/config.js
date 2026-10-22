@@ -109,6 +109,9 @@ function isObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v);
 }
 
+/** Hit policies Camunda 8 does not implement (it supports UNIQUE/ANY/FIRST/RULE ORDER/COLLECT). */
+export const C8_UNSUPPORTED_HIT_POLICIES = ['PRIORITY', 'OUTPUT ORDER'];
+
 /**
  * Whether a typeRef denotes the untyped ("Any") type. Matches any of
  * `cfg.types.anyAliases` case-insensitively (plus the canonical `anyKeyword`).

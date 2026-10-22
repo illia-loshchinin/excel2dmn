@@ -132,6 +132,14 @@ describe('Camunda 8 hit policies', () => {
       expect(model.decisions[0].hitPolicy).toBe(policy);
     },
   );
+
+  it('rejects PRIORITY in buildDmn for models that bypass the workbook parser', async () => {
+    const model = await firstModel('shipping_rates_DMN.xlsx', c8);
+    model.decisions[0].hitPolicy = 'PRIORITY';
+    await expect(buildDmn(model, c8)).rejects.toThrow(/not supported by Camunda 8/);
+    // Camunda 7 output is unaffected.
+    await expect(buildDmn(model, loadConfig({}))).resolves.toContain('hitPolicy="PRIORITY"');
+  });
 });
 
 describe('Camunda 8 reverse detection', () => {

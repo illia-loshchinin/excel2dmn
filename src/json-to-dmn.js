@@ -1,7 +1,8 @@
 // Stage B: build DMN 1.3 XML from one intermediate model. Spec §6.
 import { DmnModdle } from 'dmn-moddle';
 import { camundaModdleDescriptor, modelerModdleDescriptor } from './camunda-moddle.js';
-import { isAnyType } from './config.js';
+import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
+import { ConversionError } from './errors.js';
 
 const MODEL_NS = 'https://www.omg.org/spec/DMN/20191111/MODEL/';
 
@@ -42,6 +43,13 @@ export async function buildDmn(model, cfg) {
   const isC8 = cfg.platform === 'camunda8';
   const d = model.decisions[0];
   const decId = d.id;
+  // Also guarded in parseSheet; repeated here for models built or imported programmatically.
+  if (isC8 && C8_UNSUPPORTED_HIT_POLICIES.includes(String(d.hitPolicy).toUpperCase()))
+    throw new ConversionError([
+      {
+        message: `hit policy '${d.hitPolicy}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`,
+      },
+    ]);
 
   const input = d.inputs.map((i) =>
     moddle.create('dmn:InputClause', {
