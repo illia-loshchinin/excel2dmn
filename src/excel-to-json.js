@@ -27,7 +27,12 @@ export function selectSheets(workbook, cfg, only) {
 
 function markerNormalizer(cfg) {
   const ci = cfg.markers.caseInsensitive !== false;
-  return (s) => (ci ? String(s ?? '').trim().toLowerCase() : String(s ?? '').trim());
+  return (s) =>
+    ci
+      ? String(s ?? '')
+          .trim()
+          .toLowerCase()
+      : String(s ?? '').trim();
 }
 
 function findMarkerRow(ws, cfg) {
@@ -50,13 +55,19 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   const m = cfg.markers;
   const nm = markerNormalizer(cfg);
   const kw = {
-    id: nm(m.id), name: nm(m.name), input: nm(m.input),
-    output: nm(m.output), policy: nm(m.policy), annotations: nm(m.annotations),
+    id: nm(m.id),
+    name: nm(m.name),
+    input: nm(m.input),
+    output: nm(m.output),
+    policy: nm(m.policy),
+    annotations: nm(m.annotations),
   };
 
   const M = findMarkerRow(ws, cfg);
   if (!M)
-    throw new Error(`No input/output marker row found in "${ws.name}" (scanned first ${cfg.header.scanRows} rows)`);
+    throw new Error(
+      `No input/output marker row found in "${ws.name}" (scanned first ${cfg.header.scanRows} rows)`,
+    );
 
   const inputs = [];
   const outputs = [];
@@ -79,31 +90,55 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     switch (marker) {
       case kw.id:
         if (idCol) problems.add('more than one ID column', cellRef(ws.name, M, c));
-        idCol = desc; break;
+        idCol = desc;
+        break;
       case kw.name:
         if (nameCol) problems.add('more than one name column', cellRef(ws.name, M, c));
-        nameCol = desc; break;
+        nameCol = desc;
+        break;
       case kw.policy:
         if (policyCol) problems.add('more than one policy column', cellRef(ws.name, M, c));
-        policyCol = desc; break;
-      case kw.input: inputs.push(desc); break;
-      case kw.output: outputs.push(desc); break;
-      case kw.annotations: annotationCols.push(desc); break;
-      default: break;
+        policyCol = desc;
+        break;
+      case kw.input:
+        inputs.push(desc);
+        break;
+      case kw.output:
+        outputs.push(desc);
+        break;
+      case kw.annotations:
+        annotationCols.push(desc);
+        break;
+      default:
+        break;
     }
   }
 
   if (!idCol) problems.add(`missing required ${m.id} marker column`);
   else if (!idCol.name)
-    problems.add(`${m.id} column has no value`, cellRef(ws.name, M + cfg.header.nameOffset, idCol.col));
+    problems.add(
+      `${m.id} column has no value`,
+      cellRef(ws.name, M + cfg.header.nameOffset, idCol.col),
+    );
   if (outputs.length === 0) problems.add('no output column found (DMN requires ≥1 output)');
 
   for (const d of [...inputs, ...outputs]) {
     const role = inputs.includes(d) ? 'input' : 'output';
-    if (!d.name) problems.add(`missing technical name for ${role}`, cellRef(ws.name, M + cfg.header.nameOffset, d.col));
-    if (!d.typeRef) problems.add(`missing typeRef for ${role} '${d.name}'`, cellRef(ws.name, M + cfg.header.typeOffset, d.col));
+    if (!d.name)
+      problems.add(
+        `missing technical name for ${role}`,
+        cellRef(ws.name, M + cfg.header.nameOffset, d.col),
+      );
+    if (!d.typeRef)
+      problems.add(
+        `missing typeRef for ${role} '${d.name}'`,
+        cellRef(ws.name, M + cfg.header.typeOffset, d.col),
+      );
     else if (!cfg.types.allowed.includes(d.typeRef) && !isAnyType(d.typeRef, cfg))
-      problems.add(`unknown typeRef '${d.typeRef}'`, cellRef(ws.name, M + cfg.header.typeOffset, d.col));
+      problems.add(
+        `unknown typeRef '${d.typeRef}'`,
+        cellRef(ws.name, M + cfg.header.typeOffset, d.col),
+      );
     else if (
       cfg.types.nonCamundaTypeAction !== 'off' &&
       !isAnyType(d.typeRef, cfg) &&
@@ -119,7 +154,9 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     }
   }
 
-  const hitPolicy = (policyCol && policyCol.name ? policyCol.name : cfg.hitPolicy.default).toUpperCase();
+  const hitPolicy = (
+    policyCol && policyCol.name ? policyCol.name : cfg.hitPolicy.default
+  ).toUpperCase();
   let aggregation = null;
   if (hitPolicy === 'COLLECT' && policyCol)
     aggregation = cellText(ws, M + cfg.hitPolicy.aggregatorOffset, policyCol.col) || null;
@@ -129,7 +166,10 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   if (['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy)) {
     for (const o of outputs)
       if (!o.allowedValues)
-        problems.add(`hit policy '${hitPolicy}' requires output allowed values for '${o.name}'`, cellRef(ws.name, M + avOffset, o.col));
+        problems.add(
+          `hit policy '${hitPolicy}' requires output allowed values for '${o.name}'`,
+          cellRef(ws.name, M + avOffset, o.col),
+        );
   }
 
   for (const d of [...inputs, ...outputs]) {
@@ -170,17 +210,24 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
       }
     });
 
-    const description = annotationCols.map((d) => cellText(ws, r, d.col)).filter(Boolean).join(m.annotationSeparator);
+    const description = annotationCols
+      .map((d) => cellText(ws, r, d.col))
+      .filter(Boolean)
+      .join(m.annotationSeparator);
 
     seq += 1;
     const rule = {
       id: cfg.rules.idTemplate.replace('<n>', String(seq)).replace('<row>', String(r)),
-      seq, row: r, inputEntries, outputEntries,
+      seq,
+      row: r,
+      inputEntries,
+      outputEntries,
     };
     if (description) rule.description = description;
     rules.push(rule);
   }
-  if (rules.length === 0) problems.add(`no rules found in "${ws.name}" (no data rows below the header)`);
+  if (rules.length === 0)
+    problems.add(`no rules found in "${ws.name}" (no data rows below the header)`);
 
   problems.throwIfAny(`Cannot convert sheet "${ws.name}":`);
 
@@ -191,12 +238,29 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   const decisionName = nameCol && nameCol.name ? nameCol.name : idCol.name;
 
   return {
-    definitions: { id: `definitions_${uniqueId}`, name: decisionName, namespace: cfg.output.namespace },
+    definitions: {
+      id: `definitions_${uniqueId}`,
+      name: decisionName,
+      namespace: cfg.output.namespace,
+    },
     decisions: [
       {
-        id: uniqueId, name: decisionName, hitPolicy, aggregation,
-        inputs: inputs.map((d) => ({ label: d.label || undefined, expression: d.name, typeRef: d.typeRef, allowedValues: d.allowedValues })),
-        outputs: outputs.map((d) => ({ name: d.name, label: d.label || undefined, typeRef: d.typeRef, allowedValues: d.allowedValues })),
+        id: uniqueId,
+        name: decisionName,
+        hitPolicy,
+        aggregation,
+        inputs: inputs.map((d) => ({
+          label: d.label || undefined,
+          expression: d.name,
+          typeRef: d.typeRef,
+          allowedValues: d.allowedValues,
+        })),
+        outputs: outputs.map((d) => ({
+          name: d.name,
+          label: d.label || undefined,
+          typeRef: d.typeRef,
+          allowedValues: d.allowedValues,
+        })),
         rules,
       },
     ],
@@ -208,7 +272,8 @@ export async function parseWorkbook(path, cfg, { sheet } = {}) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(path);
   const sheets = selectSheets(workbook, cfg, sheet);
-  if (sheets.length === 0) throw new Error(`No sheet matching "${cfg.sheet.value}" found in ${path}`);
+  if (sheets.length === 0)
+    throw new Error(`No sheet matching "${cfg.sheet.value}" found in ${path}`);
   const seenDecisionIds = new Set();
   const models = [];
   for (const ws of sheets) {

@@ -7,7 +7,6 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/illia-loshchinin/excel2dmn/badge)](https://securityscorecards.dev/viewer/?uri=github.com/illia-loshchinin/excel2dmn)
 [![Provenance](https://img.shields.io/badge/npm-provenance-brightgreen)](https://docs.npmjs.com/generating-provenance-statements)
 
-
 Convert pre-formatted **Excel decision tables** into **Camunda 7 DMN 1.3** files — one `.dmn` per sheet, ready to import into the Camunda Modeler / Web Modeler.
 
 - Marker-driven, position-independent parsing (no fixed rows/columns)
@@ -22,12 +21,10 @@ Convert pre-formatted **Excel decision tables** into **Camunda 7 DMN 1.3** files
 
 ## Install
 
-```bash
-# from npm (once published)
-npm install -g excel2dmn        # or: npx excel2dmn <file.xlsx>
+Requires Node.js 20.12 or newer.
 
-# straight from GitHub (no npm publish needed)
-npm install -g github:illia-loshchinin/excel2dmn#v0.1.0
+```bash
+npm install -g excel2dmn        # or run without installing: npx excel2dmn <file.xlsx>
 ```
 
 ## Usage
@@ -65,15 +62,20 @@ const { results, problems } = await convert('rules.xlsx', { config: loadConfig({
 ## The sheet template
 
 Only sheets whose **name contains `DMN`** are processed. Each is described by a
-**5-row header** (found by the marker row, not a fixed position):
+**4-row header** (found by the marker row, not a fixed position):
 
-| Row | Purpose |
-|-----|---------|
-| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper) |
-| Name | technical/FEEL name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value |
-| Type | `string` · `number` · `boolean` · `any` · `date` … (untyped may be `any`, `none`, or `object`, any casing) |
-| Label | human column header |
-| Allowed values | optional FEEL list (`"EU","US"`) → dropdowns; required for `PRIORITY`/`OUTPUT ORDER` |
+| Row    | Purpose                                                                                                                                      |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper)                                               |
+| Name   | technical/FEEL name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value                                                       |
+| Type   | Camunda types: `string` · `boolean` · `integer` · `long` · `double` · `date` · `any` (untyped may be `any`, `none`, or `object`, any casing) |
+| Label  | human column header, directly above the rules                                                                                                |
+
+**Allowed values (opt-in).** An extra row between _Type_ and _Label_ can hold a
+FEEL list (`"EU","US"`) per column → dropdowns in the Modeler; it is required for
+`PRIORITY`/`OUTPUT ORDER`. Enable it with
+`{ "header": { "allowedValuesOffset": 3, "labelOffset": 4 }, "rules": { "startOffset": 5 } }`
+(see [`SOLUTION_SPEC.md` §3.6](./SOLUTION_SPEC.md)).
 
 Rules follow beneath the header. A row is a rule if any input/output cell is
 filled; reading stops at the first fully-empty row. Rule ids are generated as
@@ -125,4 +127,5 @@ Issues and PRs welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the
 ## License
 
 MIT © excel2dmn contributors. Third-party dependency licenses are listed in
-[`THIRD-PARTY-NOTICES.txt`](./THIRD-PARTY-NOTICES.txt).
+`THIRD-PARTY-NOTICES.txt`, which ships in the npm package (generate it locally
+with `npm run licenses:notices`).

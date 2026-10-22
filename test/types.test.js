@@ -11,7 +11,12 @@ describe('Camunda output types', () => {
   it('accepts string/boolean/integer/long/double/date and emits them verbatim', async () => {
     const [model] = await parseWorkbook(fx('camunda_types.xlsx'), cfg);
     expect(model.decisions[0].outputs.map((o) => o.typeRef)).toEqual([
-      'string', 'boolean', 'integer', 'long', 'double', 'date',
+      'string',
+      'boolean',
+      'integer',
+      'long',
+      'double',
+      'date',
     ]);
     const xml = await buildDmn(model, cfg);
     expect(xml).toContain('typeRef="integer"');

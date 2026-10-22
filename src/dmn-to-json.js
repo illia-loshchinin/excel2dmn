@@ -46,7 +46,9 @@ export async function dmnToModels(xml, cfg) {
       const row = (cfg.rules.startOffset || 5) + 1 + i;
       const r = {
         seq: i + 1,
-        id: (cfg.rules.idTemplate || 'rule_<n>').replace('<n>', String(i + 1)).replace('<row>', String(row)),
+        id: (cfg.rules.idTemplate || 'rule_<n>')
+          .replace('<n>', String(i + 1))
+          .replace('<row>', String(row)),
         row,
         inputEntries: (rule.inputEntry || []).map(text),
         outputEntries: (rule.outputEntry || []).map(text),

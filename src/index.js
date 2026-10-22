@@ -39,7 +39,13 @@ export async function convert(inputPath, options = {}) {
   for (const model of models) {
     try {
       const analysis = cfg.analysis.enabled || options.analyze ? analyzeModel(model, cfg) : null;
-      const result = { sheet: model.__sheet, model, analysis, decisionId: model.decisions[0].id, warnings: model.__warnings || [] };
+      const result = {
+        sheet: model.__sheet,
+        model,
+        analysis,
+        decisionId: model.decisions[0].id,
+        warnings: model.__warnings || [],
+      };
       if (!options.validateOnly) {
         const xml = await buildDmn(model, cfg);
         result.xml = xml;
@@ -87,7 +93,10 @@ export async function importDmn(dmnPath, options = {}) {
   );
   const writeCfg =
     hasAllowed && cfg.header.allowedValuesOffset == null
-      ? deepMerge(cfg, { header: { allowedValuesOffset: 3, labelOffset: 4 }, rules: { startOffset: 5 } })
+      ? deepMerge(cfg, {
+          header: { allowedValuesOffset: 3, labelOffset: 4 },
+          rules: { startOffset: 5 },
+        })
       : cfg;
   const out = options.out || (dmnPath ? dmnPath.replace(/\.dmn$/i, '.xlsx') : 'decision_DMN.xlsx');
   if (options.write !== false) await modelsToWorkbook(models, writeCfg, out);
