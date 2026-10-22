@@ -77,3 +77,12 @@ describe('reverse importer (dmn → xlsx)', () => {
     expect(model.decisions[0].outputs[0].allowedValues).toBe('"BRONZE","SILVER","GOLD"');
   });
 });
+
+describe('import re-convert hint', () => {
+  it('shell-quotes paths that are not safe to paste bare', async () => {
+    const { shellQuote } = await import('../src/cli.js');
+    expect(shellQuote('/tmp/out/rules.xlsx')).toBe('/tmp/out/rules.xlsx');
+    expect(shellQuote('/tmp/my rules.xlsx')).toBe("'/tmp/my rules.xlsx'");
+    expect(shellQuote("/tmp/it's;rm -rf.xlsx")).toBe("'/tmp/it'\\''s;rm -rf.xlsx'");
+  });
+});

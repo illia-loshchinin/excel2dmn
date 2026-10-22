@@ -62,13 +62,20 @@ async function convertAction(input, opts) {
   if (!results.length && !problems.length) fail('nothing to convert');
 }
 
+/** Quote a path for a copy-pasteable POSIX shell command (left bare when already safe). */
+export function shellQuote(s) {
+  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
 async function importAction(input, opts) {
   const cfg = loadConfig({ configPath: opts.config });
   const out = opts.out ? resolve(opts.out) : undefined;
   const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
   if (platform === 'camunda8')
-    console.log(`  ℹ detected Camunda 8 — re-convert with: excel2dmn ${path} --platform camunda8`);
+    console.log(
+      `  ℹ detected Camunda 8 — re-convert with: excel2dmn ${shellQuote(path)} --platform camunda8`,
+    );
 }
 
 async function initAction(opts) {
