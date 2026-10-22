@@ -22,7 +22,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Breaking:** requires Node.js 20.12 or newer (Node 18 is end-of-life).
 - Standardised the wildcard/untyped column keyword to canonical **`Any`** (aligned with Camunda 8's documented type name). `any`/`none`/`object` are still accepted case-insensitively on input; reverse `import` now writes `Any` into the Excel type cell. Emitted DMN is unchanged (untyped columns still omit `typeRef`, matching the Camunda Modeler).
-- `commander` 12 → 15, `dmn-moddle` 12.0 → 12.2.
+- `commander` 12 → 15, `dmn-moddle` 12.0 → 12.2, `feelin` 7 → 8 (FEEL parsing is unchanged; `luxon` is no longer a dependency).
 - Patched vulnerable transitive dependencies (`fast-uri`, `brace-expansion`).
 
 ### Fixed
