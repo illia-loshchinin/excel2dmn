@@ -73,7 +73,9 @@ describe('reverse importer (dmn → xlsx)', () => {
     const [srcModel] = await parseWorkbook(fx('allowed_values_DMN.xlsx'), avCfg);
     const xml = await buildDmn(srcModel, avCfg);
     const [model] = await dmnToModels(xml, cfg);
-    expect(model.decisions[0].inputs.find((i) => i.expression === 'region').allowedValues).toBe('"EU","US"');
+    expect(model.decisions[0].inputs.find((i) => i.expression === 'region').allowedValues).toBe(
+      '"EU","US"',
+    );
     expect(model.decisions[0].outputs[0].allowedValues).toBe('"BRONZE","SILVER","GOLD"');
   });
 });

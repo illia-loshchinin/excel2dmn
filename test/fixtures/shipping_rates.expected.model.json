@@ -61,34 +61,16 @@
           "id": "rule_1",
           "seq": 1,
           "row": 5,
-          "inputEntries": [
-            "< 50",
-            "\"EU\"",
-            "",
-            "",
-            ""
-          ],
-          "outputEntries": [
-            "\"STANDARD\"",
-            "5"
-          ],
+          "inputEntries": ["< 50", "\"EU\"", "", "", ""],
+          "outputEntries": ["\"STANDARD\"", "5"],
           "description": "standard EU parcel"
         },
         {
           "id": "rule_2",
           "seq": 2,
           "row": 6,
-          "inputEntries": [
-            "[50..200)",
-            "\"EU\"",
-            "true",
-            "",
-            ""
-          ],
-          "outputEntries": [
-            "\"EXPRESS\"",
-            "3"
-          ],
+          "inputEntries": ["[50..200)", "\"EU\"", "true", "", ""],
+          "outputEntries": ["\"EXPRESS\"", "3"],
           "description": "EU member express"
         },
         {
@@ -102,44 +84,23 @@
             "> 20",
             "not(some t in [\"fragile\"] satisfies t = tag)"
           ],
-          "outputEntries": [
-            "\"FREIGHT\"",
-            "7"
-          ],
+          "outputEntries": ["\"FREIGHT\"", "7"],
           "description": "EU heavy freight"
         },
         {
           "id": "rule_4",
           "seq": 4,
           "row": 8,
-          "inputEntries": [
-            "< 100",
-            "\"US\"",
-            "false",
-            "",
-            ""
-          ],
-          "outputEntries": [
-            "\"STANDARD\"",
-            "8"
-          ],
+          "inputEntries": ["< 100", "\"US\"", "false", "", ""],
+          "outputEntries": ["\"STANDARD\"", "8"],
           "description": "US ground"
         },
         {
           "id": "rule_5",
           "seq": 5,
           "row": 9,
-          "inputEntries": [
-            ">= 100",
-            "\"US\"",
-            "true",
-            "",
-            ""
-          ],
-          "outputEntries": [
-            "\"EXPRESS\"",
-            "3"
-          ],
+          "inputEntries": [">= 100", "\"US\"", "true", "", ""],
+          "outputEntries": ["\"EXPRESS\"", "3"],
           "description": "US member express"
         }
       ]

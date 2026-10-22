@@ -1,7 +1,7 @@
 // Command-line interface. Spec §7.
 import { Command, Option } from 'commander';
 import { resolve } from 'node:path';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { loadConfig } from './config.js';
 import { convert, importDmn } from './index.js';
@@ -9,6 +9,8 @@ import { writeTemplate } from './init-template.js';
 import { buildConfig, serializeConfig } from './init-config.js';
 import { formatAnalysis } from './analyze.js';
 import { ConversionError } from './errors.js';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 function buildOverrides(opts) {
   const o = {};
@@ -126,7 +128,7 @@ export function buildProgram() {
   program
     .name('excel2dmn')
     .description('Convert pre-formatted Excel decision tables into Camunda 7 or 8 DMN 1.3 files.')
-    .version('0.1.0');
+    .version(version);
 
   program
     .command('convert', { isDefault: true })
@@ -137,9 +139,7 @@ export function buildProgram() {
     .option('-j, --json', 'also write <decisionId>.model.json per sheet')
     .option('--config <file>', 'config JSON file')
     .option('--sheet <name...>', 'restrict to these sheet name(s)')
-    .addOption(
-      new Option('--platform <name>', 'target platform').choices(['camunda7', 'camunda8']),
-    )
+    .addOption(new Option('--platform <name>', 'target platform').choices(['camunda7', 'camunda8']))
     .option('--hit-policy <p>', 'fallback hit policy')
     .option('--namespace <uri>', 'definitions target namespace')
     .option('--analyze', 'run static analysis (overlap/gaps/duplicates)')

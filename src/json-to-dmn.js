@@ -24,7 +24,12 @@ function typeRefAttr(typeRef, cfg) {
   // editor's only numeric type is `number` — so C7-only integer/long/double are rewritten
   // to it on C8 output (opt out with types.camunda8NumericAlias: null). C7 is untouched.
   const alias = cfg.types.camunda8NumericAlias;
-  if (cfg.platform === 'camunda8' && alias && cfg.types.numeric.includes(typeRef) && typeRef !== alias)
+  if (
+    cfg.platform === 'camunda8' &&
+    alias &&
+    cfg.types.numeric.includes(typeRef) &&
+    typeRef !== alias
+  )
     return { typeRef: alias };
   return { typeRef };
 }
@@ -83,10 +88,16 @@ export async function buildDmn(model, cfg) {
       id: r.id,
       ...(r.description ? { description: r.description } : {}),
       inputEntry: r.inputEntries.map((text, i) =>
-        moddle.create('dmn:UnaryTests', { id: `${d.inputs[i].expression}_${r.seq ?? r.row}`, text }),
+        moddle.create('dmn:UnaryTests', {
+          id: `${d.inputs[i].expression}_${r.seq ?? r.row}`,
+          text,
+        }),
       ),
       outputEntry: r.outputEntries.map((text, i) =>
-        moddle.create('dmn:LiteralExpression', { id: `${d.outputs[i].name}_${r.seq ?? r.row}`, text }),
+        moddle.create('dmn:LiteralExpression', {
+          id: `${d.outputs[i].name}_${r.seq ?? r.row}`,
+          text,
+        }),
       ),
     }),
   );

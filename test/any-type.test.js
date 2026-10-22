@@ -85,7 +85,9 @@ describe('untyped "any" aliases', () => {
   it('validates an "Any"/alias-typed input in any-inputs FEEL mode', async () => {
     // any-inputs mode validates only wildcard-typed inputs; a broken unary expression
     // in an alias-typed ("Object") column must still be caught (guard uses isAnyType).
-    const anyInputsCfg = loadConfig({ overrides: { validation: { feel: { mode: 'any-inputs' } } } });
+    const anyInputsCfg = loadConfig({
+      overrides: { validation: { feel: { mode: 'any-inputs' } } },
+    });
     const golden = readFileSync(fx('shipping_rates.expected.dmn'), 'utf8');
     const [model] = await dmnToModels(golden, anyInputsCfg);
     model.decisions[0].inputs[0].typeRef = 'Object'; // orderTotal → wildcard alias

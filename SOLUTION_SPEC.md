@@ -26,17 +26,17 @@ Pipeline: `.xlsx` → **parse** → `model.json` → **build (dmn-moddle)** → 
 
 ## 2. Tech stack
 
-| Concern | Choice |
-|---|---|
-| Runtime | Node.js ≥ 18 (ESM) |
-| Excel reading | [`exceljs`](https://github.com/exceljs/exceljs) (reads styles/fills, needed to detect highlights if ever required) |
-| DMN model + serialization | [`dmn-moddle`](https://github.com/bpmn-io/dmn-moddle) |
-| ID generation | none — ids are **readable & deterministic** (`<name>_<n>`, §6.4), no random-id library |
-| CLI | `commander` |
-| Validation | `ajv` against the intermediate JSON Schema |
-| FEEL syntax check | [`feelin`](https://github.com/nikku/feelin) (bpmn-io FEEL; wraps `lezer-feel`) — validates `any`-typed input entries |
-| Tests | `vitest` (or `jest`) |
-| Lint | `eslint` + `prettier` |
+| Concern                   | Choice                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Runtime                   | Node.js ≥ 20.12 (ESM)                                                                                                |
+| Excel reading             | [`exceljs`](https://github.com/exceljs/exceljs) (reads styles/fills, needed to detect highlights if ever required)   |
+| DMN model + serialization | [`dmn-moddle`](https://github.com/bpmn-io/dmn-moddle)                                                                |
+| ID generation             | none — ids are **readable & deterministic** (`<name>_<n>`, §6.4), no random-id library                               |
+| CLI                       | `commander`                                                                                                          |
+| Validation                | `ajv` against the intermediate JSON Schema                                                                           |
+| FEEL syntax check         | [`feelin`](https://github.com/nikku/feelin) (bpmn-io FEEL; wraps `lezer-feel`) — validates `any`-typed input entries |
+| Tests                     | `vitest` (or `jest`)                                                                                                 |
+| Lint                      | `eslint` + `prettier`                                                                                                |
 
 `dmn-moddle` bundles the DI packages (`dmndi`, `dc`, `di`) needed for layout, and the DMN 1.3 MODEL package. It is the canonical way `dmn-js`/Camunda produce DMN XML, so output is guaranteed to match what the modeler expects.
 
@@ -55,77 +55,78 @@ The parser is **position-independent** — it does not assume markers are on row
 
 ### 3.1 Header block — located by the marker row, not a fixed row
 
-Every data column is described by a **4-row header (default)**. The header is found by scanning the **top of the sheet (rows 1–5)** for the first row that contains at least one `input` or `output` cell — that row is the **marker row** (row *M*). The three rows beneath it complete the header:
+Every data column is described by a **4-row header (default)**. The header is found by scanning the **top of the sheet (rows 1–5)** for the first row that contains at least one `input` or `output` cell — that row is the **marker row** (row _M_). The three rows beneath it complete the header:
 
-| Row | Meaning | Example |
-|---|---|---|
-| *M* (marker row) | **Marker** — one of `input`, `output`, `policy`, `id`, `name`, `annotations`, or blank (blank ⇒ helper column, ignored entirely) | `input` |
-| *M+1* | **Technical name** — the FEEL input variable / output name (camelCase) | `region` |
-| *M+2* | **Type** — `typeRef`. Use **Camunda types**: `string`, `boolean`, `integer`, `long`, `double`, `date`, `Any`. The untyped type is canonically `Any` but may also be written `any`, `none` or `object` (any casing — `Any`, `Object`, … — all mean untyped; see `types.anyAliases`, §7.1). DMN/FEEL-only types (`number`, `time`, `dateTime`, durations) are **rejected by default** (`types.nonCamundaTypeAction`, §7.1). | `integer` |
-| *M+3* | **Label** — human-readable column title (directly above the rules) | `Region` |
+| Row              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                   | Example   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| _M_ (marker row) | **Marker** — one of `input`, `output`, `policy`, `id`, `name`, `annotations`, or blank (blank ⇒ helper column, ignored entirely)                                                                                                                                                                                                                                                                                          | `input`   |
+| _M+1_            | **Technical name** — the FEEL input variable / output name (camelCase)                                                                                                                                                                                                                                                                                                                                                    | `region`  |
+| _M+2_            | **Type** — `typeRef`. Use **Camunda types**: `string`, `boolean`, `integer`, `long`, `double`, `date`, `Any`. The untyped type is canonically `Any` but may also be written `any`, `none` or `object` (any casing — `Any`, `Object`, … — all mean untyped; see `types.anyAliases`, §7.1). DMN/FEEL-only types (`number`, `time`, `dateTime`, durations) are **rejected by default** (`types.nonCamundaTypeAction`, §7.1). | `integer` |
+| _M+3_            | **Label** — human-readable column title (directly above the rules)                                                                                                                                                                                                                                                                                                                                                        | `Region`  |
 
-Rules start at **row *M+4***. This 4-row layout is the **default** and matches typical hand-authored Camunda decision tables.
+Rules start at **row _M+4_**. This 4-row layout is the **default** and matches typical hand-authored Camunda decision tables.
 
 **Optional allowed-values row (opt-in).** To constrain columns to a value list (§3.6), enable an extra row that sits **between `type` and `label`** — i.e. **above** the human label row, which stays directly on top of the rules:
 
-| Row | Meaning (allowed-values enabled) |
-|---|---|
-| *M+1* | technical name |
-| *M+2* | type |
-| *M+3* | **allowed values** (`"EU","US"`) — config `header.allowedValuesOffset: 3` |
-| *M+4* | **label** — config `header.labelOffset: 4` |
-| *M+5+* | rules — config `rules.startOffset: 5` |
+| Row    | Meaning (allowed-values enabled)                                          |
+| ------ | ------------------------------------------------------------------------- |
+| _M+1_  | technical name                                                            |
+| _M+2_  | type                                                                      |
+| _M+3_  | **allowed values** (`"EU","US"`) — config `header.allowedValuesOffset: 3` |
+| _M+4_  | **label** — config `header.labelOffset: 4`                                |
+| _M+5+_ | rules — config `rules.startOffset: 5`                                     |
 
 So enabling allowed values is the three-line config `{ header: { allowedValuesOffset: 3, labelOffset: 4 }, rules: { startOffset: 5 } }`. By **default `allowedValuesOffset` is `null`** (no allowed-values row).
 
-**Every header row is an independent integer offset from the marker row *M*** — there are no hard-coded row positions. Each is a config key (§7.1):
+**Every header row is an independent integer offset from the marker row _M_** — there are no hard-coded row positions. Each is a config key (§7.1):
 
-| Config key | Row read | Default | With allowed values |
-|---|---|---|---|
-| `header.nameOffset` | technical name / `id`·`name`·`policy` value | `1` (*M+1*) | `1` |
-| `header.typeOffset` | `typeRef` | `2` (*M+2*) | `2` |
-| `header.allowedValuesOffset` | allowed values (`null` ⇒ row absent) | `null` | `3` (*M+3*) |
-| `header.labelOffset` | human label | `3` (*M+3*) | `4` (*M+4*) |
-| `rules.startOffset` | first rule row | `4` (*M+4*) | `5` (*M+5*) |
+| Config key                   | Row read                                    | Default     | With allowed values |
+| ---------------------------- | ------------------------------------------- | ----------- | ------------------- |
+| `header.nameOffset`          | technical name / `id`·`name`·`policy` value | `1` (_M+1_) | `1`                 |
+| `header.typeOffset`          | `typeRef`                                   | `2` (_M+2_) | `2`                 |
+| `header.allowedValuesOffset` | allowed values (`null` ⇒ row absent)        | `null`      | `3` (_M+3_)         |
+| `header.labelOffset`         | human label                                 | `3` (_M+3_) | `4` (_M+4_)         |
+| `rules.startOffset`          | first rule row                              | `4` (_M+4_) | `5` (_M+5_)         |
 
 Set any of these to re-order or relocate the header rows for a team's template; the parser reads `cell(M + <offset>)` for each, independently.
 
 Each column's **role and coordinates** are read from the marker row: every column that carries `id`/`name`/`input`/`output`/`policy`/`annotations` is recorded with its column index. Column order is preserved left-to-right.
 
-Rules begin on the **first row after the header** (row *M+4* by default; *M+5* when the allowed-values row is enabled) and are detected by **data in the `input`/`output` columns** — there is no rule-id anchor column (§3.3).
+Rules begin on the **first row after the header** (row _M+4_ by default; _M+5_ when the allowed-values row is enabled) and are detected by **data in the `input`/`output` columns** — there is no rule-id anchor column (§3.3).
 
 ### 3.2 Column roles (derived from the marker row)
 
-- `id` → carries the **decision id**. The value at row *M+1* becomes `decision.id` (NCName-sanitized, see §6.4) and, **when no `name` column is present**, also `decision.name`. **Required: exactly one `id` column per sheet.** Not a data column.
-- `name` → **optional** marker carrying the **decision display name**. Its value at row *M+1* becomes `decision.name` **verbatim** (as-is, no sanitization), overriding the `id`-derived default. At most one `name` column. Not a data column.
-- `input` → a DMN **input clause**. `inputExpression.text` = row *M+1* name, `typeRef` = row *M+2*, `label` = row *M+3* (or *M+4* when allowed values are enabled), optional **allowed values** = row *M+3* → `<inputValues>` (§3.6).
-- `output` → a DMN **output clause**. `name` = row *M+1*, `typeRef` = row *M+2*, `label` = row *M+3* (or *M+4* when allowed values are enabled), optional **allowed values** = row *M+3* → `<outputValues>` (§3.6).
+- `id` → carries the **decision id**. The value at row _M+1_ becomes `decision.id` (NCName-sanitized, see §6.4) and, **when no `name` column is present**, also `decision.name`. **Required: exactly one `id` column per sheet.** Not a data column.
+- `name` → **optional** marker carrying the **decision display name**. Its value at row _M+1_ becomes `decision.name` **verbatim** (as-is, no sanitization), overriding the `id`-derived default. At most one `name` column. Not a data column.
+- `input` → a DMN **input clause**. `inputExpression.text` = row _M+1_ name, `typeRef` = row _M+2_, `label` = row _M+3_ (or _M+4_ when allowed values are enabled), optional **allowed values** = row _M+3_ → `<inputValues>` (§3.6).
+- `output` → a DMN **output clause**. `name` = row _M+1_, `typeRef` = row _M+2_, `label` = row _M+3_ (or _M+4_ when allowed values are enabled), optional **allowed values** = row _M+3_ → `<outputValues>` (§3.6).
 - `policy` → **table-level hit policy** carrier (see §3.4). Not a data column.
 - `annotations` → the rule **`<description>`**. **Optional.** Only the **marker** matters — there is **no clause, no name, no dedicated `<annotation>`/`<annotationEntry>` tag**. For each rule row, the annotation cell's **free text** (if any) becomes that rule's `description`, emitted inline as `<rule id="…"><description>value</description>…</rule>` (this is how Camunda's decision-table "Annotations" column is stored). Empty cell ⇒ no `<description>` for that rule. The `M+1`/`M+2`/`M+3` rows don't apply. If **more than one** `annotations` column exists, their non-empty values are joined with `markers.annotationSeparator` (default `" | "`) into the single `description`. Not FEEL-validated, not quoted.
-- *blank **or any cell not matching a recognized marker keyword*** → **helper** column. This covers empty marker cells and marker-row cells holding arbitrary text such as a literal banner like `NOT PART OF DMN` (seen at `L1` in the reference), or helper columns like `No.`, a lookup/notes column, an internal-code column, etc. Only the exact keywords in `markers.*` (case-insensitive, trimmed) are roles; **everything else is a helper column, ignored entirely** — not read into the JSON and never written to the DMN.
+- _blank **or any cell not matching a recognized marker keyword**_ → **helper** column. This covers empty marker cells and marker-row cells holding arbitrary text such as a literal banner like `NOT PART OF DMN` (seen at `L1` in the reference), or helper columns like `No.`, a lookup/notes column, an internal-code column, etc. Only the exact keywords in `markers.*` (case-insensitive, trimmed) are roles; **everything else is a helper column, ignored entirely** — not read into the JSON and never written to the DMN.
 
 Column order is preserved: inputs and outputs appear in the DMN table in the same left-to-right order as the sheet.
 
 ### 3.3 Rule rows — detected by the `input`/`output` columns (no anchor column)
 
-There is **no rule-id anchor column**. Rules are read from the **first row after the header** (row *M+4* default; *M+5* with the allowed-values row) downward, and a row **is a rule** if any of its `input`/`output` cells is non-empty. Reading **stops** at the first row where **all** `input` and `output` cells are empty (end of table), or at the end of the used range.
+There is **no rule-id anchor column**. Rules are read from the **first row after the header** (row _M+4_ default; _M+5_ with the allowed-values row) downward, and a row **is a rule** if any of its `input`/`output` cells is non-empty. Reading **stops** at the first row where **all** `input` and `output` cells are empty (end of table), or at the end of the used range.
 
 - **Rule id** is **generated** as `rule_<n>` — a **1-based sequential index** (`rule_1`, `rule_2`, …), so it lines up with a `DMN_1…DMN_N` column if you keep one. It is **not** read from any cell and **not** emitted as `<rule><description>` (§6.4). (`rule.row` keeps the Excel row for messages/tracing.)
 - A legacy `DMN_X` / rule-number column (if one still exists in a sheet) carries **no special role** — it is a blank-marker **helper column, ignored entirely** (§3.2), exactly like `No.`.
-- **Input cell** → `inputEntry` (a FEEL *unary test*). A cell whose text matches a configured **"any" token** (`rules.anyInputTokens`, default `["-", ""]` — i.e. a literal `-`/Excel text-dash `'-`, **or an empty cell**) is normalized to **`rules.emitAnyInputAs`** (default `""`) and emitted as an empty `<text></text>`, which DMN treats as **any / irrelevant** (Camunda renders it as `-`). The tool never emits a literal `<text>-</text>` for an input by default. Both the token set and the emitted representation are configurable (§7.1).
-- **Output cell** → `outputEntry` (a FEEL *literal expression*). Values are stored already-quoted where they are FEEL strings (`"STANDARD"`, `"EXPRESS"`, `""`). The converter passes cell text through **verbatim** — it does not add or strip quotes. Authoring quotes correctly in Excel is part of the template contract.
+- **Input cell** → `inputEntry` (a FEEL _unary test_). A cell whose text matches a configured **"any" token** (`rules.anyInputTokens`, default `["-", ""]` — i.e. a literal `-`/Excel text-dash `'-`, **or an empty cell**) is normalized to **`rules.emitAnyInputAs`** (default `""`) and emitted as an empty `<text></text>`, which DMN treats as **any / irrelevant** (Camunda renders it as `-`). The tool never emits a literal `<text>-</text>` for an input by default. Both the token set and the emitted representation are configurable (§7.1).
+- **Output cell** → `outputEntry` (a FEEL _literal expression_). Values are stored already-quoted where they are FEEL strings (`"STANDARD"`, `"EXPRESS"`, `""`). The converter passes cell text through **verbatim** — it does not add or strip quotes. Authoring quotes correctly in Excel is part of the template contract.
 - **Annotation cell** (if any `annotations` column exists) → the rule's **`description`** (free text, verbatim; **no FEEL parsing, no quoting, no type check**). Empty ⇒ no `description`. Multiple annotation columns ⇒ join non-empty values with the separator. Annotation cells do **not** count toward rule detection (a row with only annotations and no input/output data ends the table).
 - Cell values are taken as the literal string of the cell. Booleans `true`/`false` and numbers are emitted unquoted (they are valid FEEL literals as-is).
 
 ### 3.4 Hit policy via the `policy` marker
 
-Reusing the marker-row mechanism: place a column whose **marker cell (row *M*) = `policy`**. The hit policy value is read from **row *M+1*** of that column (mirroring how input/output put their technical name at *M+1*). Accepted values (DMN 1.3):
+Reusing the marker-row mechanism: place a column whose **marker cell (row _M_) = `policy`**. The hit policy value is read from **row _M+1_** of that column (mirroring how input/output put their technical name at _M+1_). Accepted values (DMN 1.3):
 
 `UNIQUE` (default), `FIRST`, `PRIORITY`, `ANY`, `COLLECT`, `RULE ORDER`, `OUTPUT ORDER`.
 
-For `COLLECT`, an optional aggregator may be given at **row *M+2*** of the `policy` column: `SUM`, `MIN`, `MAX`, `COUNT`.
+For `COLLECT`, an optional aggregator may be given at **row _M+2_** of the `policy` column: `SUM`, `MIN`, `MAX`, `COUNT`.
 
 Resolution order for the effective hit policy:
+
 1. `policy` marker column, if present.
 2. `--hit-policy` CLI flag / config file value.
 3. Default `UNIQUE`.
@@ -147,9 +148,10 @@ Reference workbook: `shipping_rates_DMN.xlsx`, sheet `Shipping Rates_ DMN`. It i
 
 ### 3.6 Allowed values (opt-in row, above the label)
 
-When enabled (config `header.allowedValuesOffset: 3`, `labelOffset: 4`, `rules.startOffset: 5`), each `input`/`output` column may declare a **list of permitted values** — its domain — in the allowed-values row, which sits **above the label row** (row *M+3*). The cell holds a FEEL value list (the same syntax as a DMN unary test list): `"EU","US","APAC"` for a string column, `1,2,3` or `[0..100]` for a number column, `true,false` for boolean. A **blank** cell means the column is unconstrained (current behavior). This maps to DMN's `<inputValues>` / `<outputValues>` (§6.1).
+When enabled (config `header.allowedValuesOffset: 3`, `labelOffset: 4`, `rules.startOffset: 5`), each `input`/`output` column may declare a **list of permitted values** — its domain — in the allowed-values row, which sits **above the label row** (row _M+3_). The cell holds a FEEL value list (the same syntax as a DMN unary test list): `"EU","US","APAC"` for a string column, `1,2,3` or `[0..100]` for a number column, `true,false` for boolean. A **blank** cell means the column is unconstrained (current behavior). This maps to DMN's `<inputValues>` / `<outputValues>` (§6.1).
 
 Why it matters:
+
 - **Modeler dropdowns + data-entry validation.** Camunda's decision-table editor renders these cells as dropdowns and flags out-of-domain values.
 - **Required for `PRIORITY` and `OUTPUT ORDER`.** These hit policies rank results by the **order of the output value list**, not by row order. Without `<outputValues>` they are undefined — so a table using either policy **must** supply the output column's allowed values (the tool errors otherwise).
 - **Enables gap/overlap analysis** (§16) — finite domains make completeness checking possible.
@@ -178,12 +180,32 @@ Stable, human-diffable contract between the two stages. **One model per DMN shee
       "hitPolicy": "UNIQUE",
       "aggregation": null,
       "inputs": [
-        { "label": "Order total", "expression": "orderTotal", "typeRef": "number", "allowedValues": null },
-        { "label": "Region",      "expression": "region",     "typeRef": "string", "allowedValues": "\"EU\",\"US\"" }
+        {
+          "label": "Order total",
+          "expression": "orderTotal",
+          "typeRef": "number",
+          "allowedValues": null
+        },
+        {
+          "label": "Region",
+          "expression": "region",
+          "typeRef": "string",
+          "allowedValues": "\"EU\",\"US\""
+        }
       ],
       "outputs": [
-        { "name": "shippingMethod", "label": "Shipping method", "typeRef": "string", "allowedValues": "\"STANDARD\",\"EXPRESS\",\"FREIGHT\"" },
-        { "name": "deliveryDays",   "label": "Delivery days",   "typeRef": "number", "allowedValues": null }
+        {
+          "name": "shippingMethod",
+          "label": "Shipping method",
+          "typeRef": "string",
+          "allowedValues": "\"STANDARD\",\"EXPRESS\",\"FREIGHT\""
+        },
+        {
+          "name": "deliveryDays",
+          "label": "Delivery days",
+          "typeRef": "number",
+          "allowedValues": null
+        }
       ],
       "rules": [
         {
@@ -200,6 +222,7 @@ Stable, human-diffable contract between the two stages. **One model per DMN shee
 ```
 
 Notes:
+
 - `definitions.id` = `"definitions_" + decision.id`; `definitions.name` = `decision.name`.
 - **Clause and entry ids are NOT stored in the model** — Stage B derives all DMN element ids deterministically from `expression`/`name` + the rule's `seq` (1-based index) (§6.4). `decision.id` (from the id marker) is the only business id carried in the model; `rule.id` = `rule_<seq>`. `rule.row` (Excel row) is kept for error/analysis messages.
 - `rule.seq` = the **1-based index** of the rule (used for ids: `rule_<seq>`, `<name>_<seq>`). `rule.row` = the **Excel row number** (used for error/analysis messages).
@@ -226,11 +249,12 @@ The algorithm follows the four discovery steps in order; each step keys off the 
 Load with `exceljs`. Find **all** worksheets whose name **contains `"DMN"`** (case-insensitive), optionally filtered by `--sheet <name...>`. 0 matches ⇒ error (§3 intro). Then run Steps 2–4 on **each** selected sheet, producing one model per sheet; collect them into `model[]`. Track decision ids across sheets and error on a duplicate. For large workbooks use the **streaming reader** and process rules in chunks — see §13.
 
 **Step 2 — Find the header block (`id`/input/output markers).**
-Scan rows 1–5 for the first row containing an `input` or `output` cell → this is the **marker row** *M*. Walk every column in row *M*; for each `id`/`name`/`input`/`output`/`policy`/`annotations` cell record a **column descriptor** `{ colIndex, role, name: cell(M+1), typeRef: cell(M+2), label: cell(M+3) }`. This yields the ordered `inputs` and `outputs` and their exact **coordinates**, plus the column index(es) of any `annotations` column(s). Annotation columns carry **no name/type** — only their per-rule values matter (§3.2).
+Scan rows 1–5 for the first row containing an `input` or `output` cell → this is the **marker row** _M_. Walk every column in row _M_; for each `id`/`name`/`input`/`output`/`policy`/`annotations` cell record a **column descriptor** `{ colIndex, role, name: cell(M+1), typeRef: cell(M+2), label: cell(M+3) }`. This yields the ordered `inputs` and `outputs` and their exact **coordinates**, plus the column index(es) of any `annotations` column(s). Annotation columns carry **no name/type** — only their per-rule values matter (§3.2).
 
 Capture the decision identity:
-   - **`id` column** (required): read its value at *M+1* → `decision.id` via `toNcNameId` (§6.4). If there is **no `id` column**, abort: `Missing required ID marker column in <sheet>`.
-   - **`name` column** (optional): if present, `decision.name` = its value at *M+1* **verbatim**; otherwise `decision.name` = the `id` value.
+
+- **`id` column** (required): read its value at _M+1_ → `decision.id` via `toNcNameId` (§6.4). If there is **no `id` column**, abort: `Missing required ID marker column in <sheet>`.
+- **`name` column** (optional): if present, `decision.name` = its value at _M+1_ **verbatim**; otherwise `decision.name` = the `id` value.
 
 Validate each descriptor as it is built: an `input`/`output` column **must** have a non-empty `name` (M+1) and `typeRef` (M+2), and the `id` column **must** have a non-empty value (M+1). If either is missing, **abort with a human-readable error that names the cell coordinates**, e.g. `Missing typeRef for output at Shipping Rates_ DMN!J3 (column J)` or `Missing technical name for input at ...!E2 (column E)`. Collect all such problems and report them together so the author fixes the header in one pass.
 
@@ -241,20 +265,24 @@ Capture **allowed values** (§3.6): for each `input`/`output` descriptor, read t
 Resolve the hit policy: use the `policy` column if one exists (value at M+1, optional COLLECT aggregator at M+2); **if there is no `policy` column in the sheet, default to `UNIQUE`** (then flag/config only override when explicitly given — see §3.4).
 
 **Step 3 — Read rules from the `input`/`output` columns.**
-Rules have **no anchor column**. Start at the **first row after the header** (`rules.startOffset`; default *M+4*) and read downward. For each row, collect the `input`/`output` cells (by coordinate):
-   - A row **is a rule** if **any** `input`/`output` cell is non-empty. **Stop** at the first row where all `input` and `output` cells are empty (end of table), or at the end of the used range. If **no rule row** exists, abort: `No rules found in <sheet> (no data rows below the header)`.
-   - `rule.id` = **`rule_<seq>`** (1-based index), generated — emitted as `<rule id="rule_1">`, `<rule id="rule_2">`, …. `rule.seq` = the index; `rule.row` = the Excel row (kept for messages).
-   - For each `input`/`output` descriptor (in coordinate order), read the cell at `(ruleRow, descriptor.colIndex)` → push text into `inputEntries` / `outputEntries` (empty ⇒ `""`).
-   - For each `annotations` column, read the cell (verbatim free text). Join the non-empty values (separator, default `" | "`) → `rule.description` (omit the field entirely if all blank). Row-is-a-rule detection uses **only** `input`/`output` cells, never annotation cells.
-   - **Ignore all non-marker helper columns entirely** (including any legacy `DMN_X`/rule-number column) — do not read them, do not store them, do not emit them. Only `input`/`output`/`policy`/`annotations` columns are consumed.
+Rules have **no anchor column**. Start at the **first row after the header** (`rules.startOffset`; default _M+4_) and read downward. For each row, collect the `input`/`output` cells (by coordinate):
+
+- A row **is a rule** if **any** `input`/`output` cell is non-empty. **Stop** at the first row where all `input` and `output` cells are empty (end of table), or at the end of the used range. If **no rule row** exists, abort: `No rules found in <sheet> (no data rows below the header)`.
+- `rule.id` = **`rule_<seq>`** (1-based index), generated — emitted as `<rule id="rule_1">`, `<rule id="rule_2">`, …. `rule.seq` = the index; `rule.row` = the Excel row (kept for messages).
+- For each `input`/`output` descriptor (in coordinate order), read the cell at `(ruleRow, descriptor.colIndex)` → push text into `inputEntries` / `outputEntries` (empty ⇒ `""`).
+- For each `annotations` column, read the cell (verbatim free text). Join the non-empty values (separator, default `" | "`) → `rule.description` (omit the field entirely if all blank). Row-is-a-rule detection uses **only** `input`/`output` cells, never annotation cells.
+- **Ignore all non-marker helper columns entirely** (including any legacy `DMN_X`/rule-number column) — do not read them, do not store them, do not emit them. Only `input`/`output`/`policy`/`annotations` columns are consumed.
 
 **Step 3b — Type-aware FEEL validation of entries.**
 Every non-empty **input/output** entry is parsed with `feelin` and checked against its column's `typeRef`. Two layers: (1) **syntax** — the Lezer tree must contain no `type.isError` node; (2) **type consistency** — the literal leaf kinds in the tree must match the column type. Inputs are parsed as **unary tests** (`parseUnaryTests`), outputs as **expressions** (`parseExpression`). Empty cells and `-` (a `Wildcard`) are always valid (they mean "any / irrelevant"). **`annotations` columns are skipped** — free text, never parsed or type-checked.
 
 ```js
-import { parseUnaryTests, parseExpression } from 'feelin';   // verified: feelin 7.0.1
-function leafKinds(tree) {                    // collect literal node names + error flag
-  const kinds = new Set(); let hasError = false; const c = tree.cursor();
+import { parseUnaryTests, parseExpression } from 'feelin'; // verified: feelin 7.0.1
+function leafKinds(tree) {
+  // collect literal node names + error flag
+  const kinds = new Set();
+  let hasError = false;
+  const c = tree.cursor();
   do {
     if (c.type.isError) hasError = true;
     if (/Literal$|^Wildcard$|^VariableName$/.test(c.type.name)) kinds.add(c.type.name);
@@ -263,17 +291,17 @@ function leafKinds(tree) {                    // collect literal node names + er
 }
 ```
 
-Verified Lezer node kinds: quoted string → `StringLiteral`; integer/decimal → `NumericLiteral`; `true`/`false` → `BooleanLiteral`; `-` → `Wildcard`; a **bare unquoted word** (e.g. `EU`) → `VariableName` (a variable reference, *not* a string).
+Verified Lezer node kinds: quoted string → `StringLiteral`; integer/decimal → `NumericLiteral`; `true`/`false` → `BooleanLiteral`; `-` → `Wildcard`; a **bare unquoted word** (e.g. `EU`) → `VariableName` (a variable reference, _not_ a string).
 
 **Per-`typeRef` rules for INPUT entries** (after syntax passes; ranges `[1..10]`, comparisons `< 5`, and comma lists inherit their operands' leaf kinds, so the same checks apply):
 
-| `typeRef` | Valid entry | Rejected (type error) |
-|---|---|---|
-| `number`/`integer`/`long`/`double` (`types.numeric`) | `NumericLiteral`s — integers (`1`, `1221`) **and decimals** (`3.5`), ranges `[1..10]`, comparisons `>= 3`, lists `1, 2, 3`, `not(...)`. Camunda's editor uses `integer`/`long`/`double`; DMN/FEEL uses `number` — all validated identically. | any `StringLiteral` or `BooleanLiteral`; a bare `VariableName` (likely a typo) unless `allowExpressions` |
-| `string` | `StringLiteral`s — **quotes required** (`"EU"`), lists of quoted strings, `not(...)`, and (if `allowExpressions`) supported comparisons | a bare `VariableName` (unquoted word — missing quotes); `NumericLiteral`/`BooleanLiteral` |
-| `boolean` | `BooleanLiteral` — `true` / `false` (and `-`) | anything else (`"true"`, `1`, identifiers) |
-| `Any` (`types.anyKeyword`; aliases `any`/`none`/`object`, any casing) | any syntactically valid unary test (e.g. the `tags` expression) | syntax errors only |
-| `date` / `time` / `dateTime` / `dayTimeDuration` / `yearMonthDuration` (config `types.syntaxOnly`) | any syntactically valid unary test (e.g. `date("2026-01-01")`, `< date("2026-01-01")`) | syntax errors only — **no** literal-kind enforcement |
+| `typeRef`                                                                                          | Valid entry                                                                                                                                                                                                                                  | Rejected (type error)                                                                                    |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `number`/`integer`/`long`/`double` (`types.numeric`)                                               | `NumericLiteral`s — integers (`1`, `1221`) **and decimals** (`3.5`), ranges `[1..10]`, comparisons `>= 3`, lists `1, 2, 3`, `not(...)`. Camunda's editor uses `integer`/`long`/`double`; DMN/FEEL uses `number` — all validated identically. | any `StringLiteral` or `BooleanLiteral`; a bare `VariableName` (likely a typo) unless `allowExpressions` |
+| `string`                                                                                           | `StringLiteral`s — **quotes required** (`"EU"`), lists of quoted strings, `not(...)`, and (if `allowExpressions`) supported comparisons                                                                                                      | a bare `VariableName` (unquoted word — missing quotes); `NumericLiteral`/`BooleanLiteral`                |
+| `boolean`                                                                                          | `BooleanLiteral` — `true` / `false` (and `-`)                                                                                                                                                                                                | anything else (`"true"`, `1`, identifiers)                                                               |
+| `Any` (`types.anyKeyword`; aliases `any`/`none`/`object`, any casing)                              | any syntactically valid unary test (e.g. the `tags` expression)                                                                                                                                                                              | syntax errors only                                                                                       |
+| `date` / `time` / `dateTime` / `dayTimeDuration` / `yearMonthDuration` (config `types.syntaxOnly`) | any syntactically valid unary test (e.g. `date("2026-01-01")`, `< date("2026-01-01")`)                                                                                                                                                       | syntax errors only — **no** literal-kind enforcement                                                     |
 
 **OUTPUT entries — validated by their `typeRef` (quotes enforced for `string` only).** Outputs are FEEL literal expressions, parsed with `parseExpression` and checked against the output column's `typeRef` using the same literal-kind rules as the table above:
 
@@ -311,22 +339,23 @@ Assemble the `model` (§4) with the single decision (`decision.id` = NCName-sani
 ### 6.1 Element construction
 
 ```js
-import { DmnModdle } from 'dmn-moddle';   // NAMED export
+import { DmnModdle } from 'dmn-moddle'; // NAMED export
 const moddle = new DmnModdle();
 
 // definitions — match the target Camunda-7 working file exactly
 const definitions = moddle.create('dmn:Definitions', {
   id: model.definitions.id,
   name: model.definitions.name,
-  namespace: model.definitions.namespace,                         // e.g. http://camunda.org/schema/1.0/dmn
-  expressionLanguage: 'https://www.omg.org/spec/DMN/20191111/FEEL/',   // present in the target file
-  typeLanguage:       'https://www.omg.org/spec/DMN/20191111/FEEL/'    // present in the target file
+  namespace: model.definitions.namespace, // e.g. http://camunda.org/schema/1.0/dmn
+  expressionLanguage: 'https://www.omg.org/spec/DMN/20191111/FEEL/', // present in the target file
+  typeLanguage: 'https://www.omg.org/spec/DMN/20191111/FEEL/', // present in the target file
 });
 ```
 
 > **`expressionLanguage` and `typeLanguage` (both = the DMN 1.3 FEEL URI) MUST be set** — the reference working `.dmn` carries them on `<definitions>`. `exporter`/`exporterVersion` are optional and absent from the target file; leave them off (or set them) as preferred.
 
 For each decision (all ids follow the **readable, deterministic scheme** in §6.4):
+
 - `dmn:Decision { id, name }`.
 - `dmn:DecisionTable { id, hitPolicy, aggregation?, preferredOrientation: 'Rule-as-Row' }`.
 - Inputs → `dmn:InputClause { id, label }` each with `dmn:LiteralExpression` as `inputExpression` carrying `text` (the FEEL variable) and `typeRef`; when `allowedValues` is set, also `inputValues: dmn:UnaryTests { text: <list> }` (no id).
@@ -356,6 +385,7 @@ For each decision (all ids follow the **readable, deterministic scheme** in §6.
 ### 6.2 DRD + DMNDI (layout)
 
 Because the user wants a laid-out DRD (one decision per DMN sheet):
+
 - Create `dmndi:DMNDI` → one `dmndi:DMNDiagram { id }` → one `dmndi:DMNShape { id, dmnElementRef: <decisionId>, isCollapsed: false }` with `dc:Bounds { x, y, width: 180, height: 80 }`.
 - Position: a single fixed placement is fine (`x:160, y:100`; the target file uses `x:-230, y:0` — any coordinates render, the modeler lets the user move it).
 - `DMNShape.id` = `DMNShape_<decisionId>`, `DMNDiagram.id` = `DMNDiagram_<decisionId>` (§6.4); `dmnElementRef` = the decision's business-key id.
@@ -381,7 +411,7 @@ xml = xml
   .replace(/<\/dmn:/g, '</')
   .replace(
     'xmlns:dmn="https://www.omg.org/spec/DMN/20191111/MODEL/"',
-    'xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"'
+    'xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"',
   );
 ```
 
@@ -404,38 +434,42 @@ The target file also declares `xmlns:ns0="http://camunda.org/schema/1.0/dmn"` �
 - Root `<definitions>` in DMN 1.3 namespace, unique `id`, a `namespace` (target) attribute.
 - Every `id` is a valid NCName and unique across the file. **ID convention — readable & deterministic** (no random ids, so re-running the tool on unchanged input yields **byte-identical** XML — clean CI diffs and byte-level golden tests). All ids are built from the decision id, the column technical name, and the rule's Excel row:
 
-  | Element | id pattern | example |
-  |---|---|---|
-  | `definitions` | `definitions_<decisionId>` | `definitions_SHIPPING_RATES` |
-  | `decision` | `<decisionId>` (from `id` marker) | `SHIPPING_RATES` |
-  | `decisionTable` | `<decisionId>_decisionTable` | `SHIPPING_RATES_decisionTable` |
-  | `input` (InputClause) | `<expression>` | `region` |
-  | input's `inputExpression` | `<expression>_expression` | `region_expression` |
-  | `output` (OutputClause) | `<name>` | `shippingMethod` |
-  | `rule` | `rule_<seq>` (1-based index) | `rule_1` |
-  | `inputEntry` (UnaryTests) | `<expression>_<seq>` | `region_1` |
-  | `outputEntry` (LiteralExpression) | `<name>_<seq>` | `shippingMethod_1` |
-  | `DMNDiagram` | `DMNDiagram_<decisionId>` | `DMNDiagram_SHIPPING_RATES` |
-  | `DMNShape` | `DMNShape_<decisionId>` | `DMNShape_SHIPPING_RATES` |
+  | Element                           | id pattern                        | example                        |
+  | --------------------------------- | --------------------------------- | ------------------------------ |
+  | `definitions`                     | `definitions_<decisionId>`        | `definitions_SHIPPING_RATES`   |
+  | `decision`                        | `<decisionId>` (from `id` marker) | `SHIPPING_RATES`               |
+  | `decisionTable`                   | `<decisionId>_decisionTable`      | `SHIPPING_RATES_decisionTable` |
+  | `input` (InputClause)             | `<expression>`                    | `region`                       |
+  | input's `inputExpression`         | `<expression>_expression`         | `region_expression`            |
+  | `output` (OutputClause)           | `<name>`                          | `shippingMethod`               |
+  | `rule`                            | `rule_<seq>` (1-based index)      | `rule_1`                       |
+  | `inputEntry` (UnaryTests)         | `<expression>_<seq>`              | `region_1`                     |
+  | `outputEntry` (LiteralExpression) | `<name>_<seq>`                    | `shippingMethod_1`             |
+  | `DMNDiagram`                      | `DMNDiagram_<decisionId>`         | `DMNDiagram_SHIPPING_RATES`    |
+  | `DMNShape`                        | `DMNShape_<decisionId>`           | `DMNShape_SHIPPING_RATES`      |
 
   (A rule's annotation is emitted as its `<description>` child, which has no id of its own — §3.2.) Here `<seq>` is the rule's **1-based index** (`rule.seq`), so `rule_4` / `region_4` line up with the 4th rule (and a `DMN_4` label if you keep one); `rule.row` still records the Excel row for error and analysis messages. Sanitize each name component with `toNcNameId`-style rules only if it isn't already NCName-safe (technical names are camelCase, so normally untouched). No `ids`/`nanoid` dependency is needed.
 
 - **`decision.id` comes from the required `id` marker column; `decision.name` comes from the optional `name` marker column (falling back to the `id` value)** (§3.2). `decision.id` = the `id` value **after NCName sanitization** (`UPPER_SNAKE_CASE`, diacritics folded to ASCII). `decision.name` = the `name`-column value **verbatim** if a `name` column exists, otherwise the raw `id` value. The sanitizer is a no-op when the `id` value is already an identifier (e.g. `SHIPPING_RATES`); it only normalizes values that contain spaces/diacritics/punctuation:
 
   ```js
-  const FOLD = { 'ł':'l','Ł':'L','ø':'o','Ø':'O','đ':'d','Đ':'D','ß':'ss' };
-  function toNcNameId(value) {                        // apply to the ID-marker value
+  const FOLD = { ł: 'l', Ł: 'L', ø: 'o', Ø: 'O', đ: 'd', Đ: 'D', ß: 'ss' };
+  function toNcNameId(value) {
+    // apply to the ID-marker value
     return value
-      .replace(/[łŁøØđĐß]/g, c => FOLD[c] || c)     // letters NFD can't decompose
-      .normalize('NFD').replace(/[̀-ͯ]/g, '') // fold combining marks (ó→o, ą→a, ś→s…)
-      .replace(/[^A-Za-z0-9]+/g, '_')                // any run of non-alphanumerics → one _
-      .replace(/_+/g, '_').replace(/^_+|_+$/g, '')   // collapse + trim underscores
+      .replace(/[łŁøØđĐß]/g, (c) => FOLD[c] || c) // letters NFD can't decompose
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // fold combining marks (ó→o, ą→a, ś→s…)
+      .replace(/[^A-Za-z0-9]+/g, '_') // any run of non-alphanumerics → one _
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '') // collapse + trim underscores
       .toUpperCase()
-      .replace(/^([0-9])/, '_$1');                   // NCName must not start with a digit
+      .replace(/^([0-9])/, '_$1'); // NCName must not start with a digit
   }
   ```
 
   Verified: `SHIPPING_RATES` → unchanged; `Zürich Süd` → `ZURICH_SUD`. The explicit `FOLD` map is **required** — `ł`/`Ł` (and `ø`, `đ`, `ß`) do **not** decompose under NFD and would otherwise be dropped (e.g. `Straße` folds to `STRASSE` only via the map; without it `ł`-words lose the letter). If two decisions across the repo produce the same id, suffix `_2`, `_3`, … on collision.
+
 - **`<rule><description>` = the annotation.** A rule emits `<description>` **only when its `annotations` column has a value** (§3.2); rules without an annotation have no `<description>` (matching the earlier target file, which had no annotations). This is exactly how Camunda's decision-table annotation column is stored. Helper columns like `No.` (and any legacy `DMN_X` column) are not carried anywhere — they are ignored entirely (§3.2).
 - `preferredOrientation="Rule-as-Row"` is present on `<decisionTable>` in the target — always set it.
 - Hit policy: the target `<decisionTable>` has **no `hitPolicy` attribute** ⇒ it is `UNIQUE` (the default). Emit `hitPolicy` only for non-default policies (moddle does this automatically; see §6.1).
@@ -455,18 +489,27 @@ dmn-moddle doesn't know Camunda attributes, so register a **tiny inline moddle e
 
 ```js
 const camunda = {
-  name: 'Camunda', uri: 'http://camunda.org/schema/1.0/dmn', prefix: 'camunda',
+  name: 'Camunda',
+  uri: 'http://camunda.org/schema/1.0/dmn',
+  prefix: 'camunda',
   xml: { tagAlias: 'lowerCase' },
-  types: [{ name: 'CamundaDecision', extends: ['dmn:Decision'], properties: [
-    { name: 'historyTimeToLive', isAttr: true, type: 'String' },
-    { name: 'versionTag',        isAttr: true, type: 'String' }
-  ]}]
+  types: [
+    {
+      name: 'CamundaDecision',
+      extends: ['dmn:Decision'],
+      properties: [
+        { name: 'historyTimeToLive', isAttr: true, type: 'String' },
+        { name: 'versionTag', isAttr: true, type: 'String' },
+      ],
+    },
+  ],
 };
 const moddle = new DmnModdle({ camunda });
 // then: moddle.create('dmn:Decision', { id, name, historyTimeToLive: cfg, versionTag: cfg?, decisionLogic })
 ```
 
 Behavior:
+
 - Emit `camunda:historyTimeToLive` when `camunda.historyTimeToLive` is set (config default `"P180D"`; set to `null` to omit). Accepts an ISO-8601 duration (`P180D`) or an integer number of days.
 - Emit `camunda:versionTag` only when `camunda.versionTag` is set (default `null`).
 - Using the `camunda:` prefix causes moddle to declare **`xmlns:camunda`** on the root automatically (a real prefix now, not the `ns0` artifact from §6.3). The default-namespace **post-process (§6.3) only rewrites `dmn:`** tags, so `camunda:` attributes and the `xmlns:camunda` declaration pass through untouched.
@@ -520,18 +563,18 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
 {
   // --- sheet selection (ALL matching sheets are converted, one .dmn each) ---
   "sheet": {
-    "match": "contains",          // "contains" | "regex" | "exact"
-    "value": "DMN",               // substring, /regex/ source, or exact name
-    "caseInsensitive": true
+    "match": "contains", // "contains" | "regex" | "exact"
+    "value": "DMN", // substring, /regex/ source, or exact name
+    "caseInsensitive": true,
   },
 
   // --- header discovery ---
   "header": {
-    "scanRows": 5,                // rows 1..scanRows searched for the marker row
-    "nameOffset": 1,             // technical name at markerRow + nameOffset
-    "typeOffset": 2,             // typeRef at markerRow + typeOffset
-    "labelOffset": 3,            // label at markerRow + labelOffset
-    "allowedValuesOffset": null  // null = no allowed-values row (default); set 3 to enable it above the label
+    "scanRows": 5, // rows 1..scanRows searched for the marker row
+    "nameOffset": 1, // technical name at markerRow + nameOffset
+    "typeOffset": 2, // typeRef at markerRow + typeOffset
+    "labelOffset": 3, // label at markerRow + labelOffset
+    "allowedValuesOffset": null, // null = no allowed-values row (default); set 3 to enable it above the label
   },
 
   // --- marker keywords (row-M cell text → role). Rename freely. ---
@@ -543,100 +586,113 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
     "policy": "policy",
     "annotations": "annotations", // 0+ columns → rule <description> (free text)
     "annotationSeparator": " | ", // join value when multiple Annotations columns
-    "caseInsensitive": true       // match marker cells ignoring case/whitespace
+    "caseInsensitive": true, // match marker cells ignoring case/whitespace
   },
 
   // --- rule detection (no anchor column; driven by input/output data) ---
   "rules": {
-    "startOffset": 5,             // rules start at markerRow + startOffset (M+5 with allowed-values row; 4 without)
-    "detectBy": "input-output",   // a row is a rule if any input/output cell is non-empty
-    "stopOnEmptyRow": true,       // stop at first row with all input/output cells empty
-    "idTemplate": "rule_<n>",     // <n> = 1-based rule index (default); <row> = Excel row also available
-    "anyInputTokens": ["-", ""],  // input cell values that mean "any/irrelevant" ("" = empty cell)
-    "emitAnyInputAs": ""          // what an "any" input emits; "" → <text></text>
+    "startOffset": 5, // rules start at markerRow + startOffset (M+5 with allowed-values row; 4 without)
+    "detectBy": "input-output", // a row is a rule if any input/output cell is non-empty
+    "stopOnEmptyRow": true, // stop at first row with all input/output cells empty
+    "idTemplate": "rule_<n>", // <n> = 1-based rule index (default); <row> = Excel row also available
+    "anyInputTokens": ["-", ""], // input cell values that mean "any/irrelevant" ("" = empty cell)
+    "emitAnyInputAs": "", // what an "any" input emits; "" → <text></text>
     // note: <rule><description> is emitted only from an Annotations value (§3.2)
   },
 
   // --- decision id / name rules ---
   "identity": {
-    "idFrom": "ID",               // marker role that supplies decision.id
-    "nameFrom": "name",           // marker role for decision.name (falls back to idFrom)
-    "sanitizeId": true,           // apply toNcNameId to decision.id
-    "idCase": "upper",            // "upper" | "preserve"
-    "foldMap": { "ł":"l","Ł":"L","ø":"o","Ø":"O","đ":"d","Đ":"D","ß":"ss" },
-    "collisionSuffix": "_"        // _2, _3 … on duplicate ids
+    "idFrom": "ID", // marker role that supplies decision.id
+    "nameFrom": "name", // marker role for decision.name (falls back to idFrom)
+    "sanitizeId": true, // apply toNcNameId to decision.id
+    "idCase": "upper", // "upper" | "preserve"
+    "foldMap": { "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss" },
+    "collisionSuffix": "_", // _2, _3 … on duplicate ids
   },
 
   // --- hit policy ---
   "hitPolicy": {
     "default": "UNIQUE",
-    "allowed": ["UNIQUE","FIRST","PRIORITY","ANY","COLLECT","RULE ORDER","OUTPUT ORDER"],
-    "aggregatorOffset": 2         // COLLECT aggregator at policyRow + this (M+2)
+    "allowed": ["UNIQUE", "FIRST", "PRIORITY", "ANY", "COLLECT", "RULE ORDER", "OUTPUT ORDER"],
+    "aggregatorOffset": 2, // COLLECT aggregator at policyRow + this (M+2)
   },
 
   // --- type mapping ---
   "types": {
-    "anyKeyword": "Any",          // canonical untyped keyword (matches Camunda 8's "Any")
-    "anyAliases": ["any","none","object"], // all mean "untyped" (matched case-insensitively);
-                                  // on import any of these is normalized to "Any"
-    "anyDmnPlaceholder": null,    // typeRef written for an "any" column in the DMN:
-                                  // null/"" → omit the attribute (Camunda shows "Any");
-                                  // a string (e.g. "Any") → emit typeRef="<value>"
-    "allowed": ["string","boolean","number","integer","long","double","any",
-                "date","time","dateTime","dayTimeDuration","yearMonthDuration"],
-    "numeric": ["number","integer","long","double"], // validated with numeric rules
-    "camundaTypes": ["string","boolean","integer","long","double","date"], // Camunda decision-table types (+ "any")
+    "anyKeyword": "Any", // canonical untyped keyword (matches Camunda 8's "Any")
+    "anyAliases": ["any", "none", "object"], // all mean "untyped" (matched case-insensitively);
+    // on import any of these is normalized to "Any"
+    "anyDmnPlaceholder": null, // typeRef written for an "any" column in the DMN:
+    // null/"" → omit the attribute (Camunda shows "Any");
+    // a string (e.g. "Any") → emit typeRef="<value>"
+    "allowed": [
+      "string",
+      "boolean",
+      "number",
+      "integer",
+      "long",
+      "double",
+      "any",
+      "date",
+      "time",
+      "dateTime",
+      "dayTimeDuration",
+      "yearMonthDuration",
+    ],
+    "numeric": ["number", "integer", "long", "double"], // validated with numeric rules
+    "camundaTypes": ["string", "boolean", "integer", "long", "double", "date"], // Camunda decision-table types (+ "any")
     "nonCamundaTypeAction": "error", // typeRef valid in DMN/FEEL but not Camunda (e.g. "number"): "error" (default) | "warn" | "off"
-    "syntaxOnly": ["date","time","dateTime","dayTimeDuration","yearMonthDuration"],
-                                  // these + "any": FEEL syntax check only, no literal-kind rule
-    "number":  { "allowExpressions": true },   // integers + decimals; ranges/compares/lists
-    "string":  { "allowExpressions": true },   // require quotes; allow supported exprs
-    "boolean": { "allowExpressions": false }   // only true/false (and -)
+    "syntaxOnly": ["date", "time", "dateTime", "dayTimeDuration", "yearMonthDuration"],
+    // these + "any": FEEL syntax check only, no literal-kind rule
+    "number": { "allowExpressions": true }, // integers + decimals; ranges/compares/lists
+    "string": { "allowExpressions": true }, // require quotes; allow supported exprs
+    "boolean": { "allowExpressions": false }, // only true/false (and -)
   },
 
   // --- type-aware FEEL validation of entries (§3b) ---
   "validation": {
     "feel": {
-      "mode": "all-inputs",       // "all-inputs" | "any-inputs" | "off"
-      "failFast": false           // false → collect all errors, report together
+      "mode": "all-inputs", // "all-inputs" | "any-inputs" | "off"
+      "failFast": false, // false → collect all errors, report together
     },
-    "enforceAllowedValues": false // true → rule entries must fall within row-M+4 domains (§3.6)
+    "enforceAllowedValues": false, // true → rule entries must fall within row-M+4 domains (§3.6)
   },
 
   // --- output entries (quote rule applies to string-typed outputs only) ---
   "outputEntries": {
-    "requireQuotes": true,        // string outputs must be a "string" literal (incl "")
-    "autoQuote": false            // true → wrap unquoted string outputs instead of erroring
+    "requireQuotes": true, // string outputs must be a "string" literal (incl "")
+    "autoQuote": false, // true → wrap unquoted string outputs instead of erroring
   },
 
   // --- output serialization ---
-  "platform": "camunda7",         // "camunda7" | "camunda8" (§6.6)
+  "platform": "camunda7", // "camunda7" | "camunda8" (§6.6)
   // --- Camunda 7 extensions on <decision> (§6.5) ---
   "camunda": {
     "historyTimeToLive": "P180D", // null → omit; "P180D" or an integer day count
-    "versionTag": null            // null → omit; else e.g. "1.0"
+    "versionTag": null, // null → omit; else e.g. "1.0"
   },
   // --- Camunda 8 modeler metadata on <definitions> (§6.6); used when platform === "camunda8" ---
   "camunda8": {
     "executionPlatform": "Camunda Cloud",
-    "executionPlatformVersion": "8.6.0"
+    "executionPlatformVersion": "8.6.0",
   },
 
   "output": {
     "namespace": "http://camunda.org/schema/1.0/dmn",
     "expressionLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
     "typeLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
-    "namespaceStyle": "default",  // "default" (unprefixed MODEL ns) | "prefixed" (dmn:)
+    "namespaceStyle": "default", // "default" (unprefixed MODEL ns) | "prefixed" (dmn:)
     "shape": { "x": -230, "y": 0, "width": 180, "height": 80 },
-    "format": true,               // pretty-print
-    "outDir": null,               // null → write beside the input .xlsx; else this dir
-    "fileNameTemplate": "<decisionId>.dmn",   // one file per DMN sheet; also "<sheetName>.dmn"
-    "writeModelJson": false       // true → also emit <decisionId>.model.json per sheet
-  }
+    "format": true, // pretty-print
+    "outDir": null, // null → write beside the input .xlsx; else this dir
+    "fileNameTemplate": "<decisionId>.dmn", // one file per DMN sheet; also "<sheetName>.dmn"
+    "writeModelJson": false, // true → also emit <decisionId>.model.json per sheet
+  },
 }
 ```
 
 Rules of use:
+
 - The parser **reads marker keywords from `markers`**, never from hardcoded literals — so renaming `id`→`KEY` or `input`→`in` in the sheet is a one-line config change.
 - `sheet.match: "regex"` restores pattern-based selection if a team prefers it (e.g. `"value": "_?\\s?DMN$"`).
 - `header.*Offset` and `header.scanRows` cover templates whose header block is laid out differently.
@@ -685,7 +741,7 @@ validate:
   script:
     - npm run lint
     - npm test
-    - for f in definitions/*.xlsx; do node src/cli.js "$f" --validate-only; done  # schema-check every DMN sheet in each workbook
+    - for f in definitions/*.xlsx; do node src/cli.js "$f" --validate-only; done # schema-check every DMN sheet in each workbook
 
 convert:
   stage: convert
@@ -696,7 +752,7 @@ convert:
       for f in definitions/*.xlsx; do
         node src/cli.js "$f" --out-dir dist --json
       done
-    - ls -1 dist/*.dmn | wc -l   # sanity: number of emitted decisions
+    - ls -1 dist/*.dmn | wc -l # sanity: number of emitted decisions
   artifacts:
     paths: [dist/]
     expire_in: 30 days
@@ -704,7 +760,7 @@ convert:
 publish:
   stage: publish
   rules:
-    - if: '$CI_COMMIT_TAG'          # only publish .dmn artifacts on tags
+    - if: '$CI_COMMIT_TAG' # only publish .dmn artifacts on tags
   script:
     - echo "Attach dist/*.dmn to the release / upload to package registry"
   artifacts:
@@ -712,6 +768,7 @@ publish:
 ```
 
 Design notes:
+
 - **`validate` stage fails the pipeline** on malformed templates before any DMN is produced — the reason for the strict JSON Schema.
 - `.dmn` files are pipeline **artifacts**; developers download them or a later job pushes them to a Camunda 7 deployment endpoint (`POST /engine-rest/deployment/create`) if you want continuous deployment — kept out of the default pipeline since Web Modeler import is a manual step per the goal.
 
@@ -750,3 +807,4 @@ excel-to-dmn/
 ├─ schema/
 │  ├─ model.schema.json       # intermediate JSON Schema
 │  └─ c
+```

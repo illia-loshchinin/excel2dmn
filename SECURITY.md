@@ -6,7 +6,7 @@
 runs it on their own spreadsheets to produce `.dmn` files. Given that model:
 
 - It performs **no network access** — nothing is fetched, uploaded, or phoned home.
-- It **never executes spreadsheet content.** FEEL expressions in cells are *parsed*
+- It **never executes spreadsheet content.** FEEL expressions in cells are _parsed_
   (a syntax tree is built via `feelin`) and re-serialized — they are never evaluated.
 - It contains no `eval`, `new Function`, `child_process`, or dynamic `require`.
 - Output filenames are derived from the sanitized decision id (`[A-Z0-9_]` only),
