@@ -1,12 +1,13 @@
 // Stage B: build DMN 1.3 XML from one intermediate model. Spec §6.
 import { DmnModdle } from 'dmn-moddle';
-import { camundaModdleDescriptor } from './camunda-moddle.js';
-import { isAnyType } from './config.js';
+import { camundaModdleDescriptor, modelerModdleDescriptor } from './camunda-moddle.js';
+import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
+import { ConversionError } from './errors.js';
 
 const MODEL_NS = 'https://www.omg.org/spec/DMN/20191111/MODEL/';
 
 function createModdle() {
-  return new DmnModdle({ camunda: camundaModdleDescriptor });
+  return new DmnModdle({ camunda: camundaModdleDescriptor, modeler: modelerModdleDescriptor });
 }
 
 /**
@@ -19,6 +20,17 @@ function typeRefAttr(typeRef, cfg) {
     const placeholder = cfg.types.anyDmnPlaceholder;
     return placeholder ? { typeRef: placeholder } : {};
   }
+  // Camunda 8's FEEL engine accepts the full type set on input, but its decision-table
+  // editor's only numeric type is `number` — so C7-only integer/long/double are rewritten
+  // to it on C8 output (opt out with types.camunda8NumericAlias: null). C7 is untouched.
+  const alias = cfg.types.camunda8NumericAlias;
+  if (
+    cfg.platform === 'camunda8' &&
+    alias &&
+    cfg.types.numeric.includes(typeRef) &&
+    typeRef !== alias
+  )
+    return { typeRef: alias };
   return { typeRef };
 }
 
@@ -33,8 +45,16 @@ function toDefaultNamespace(xml) {
 /** Build a complete, standalone DMN 1.3 document string from one model. */
 export async function buildDmn(model, cfg) {
   const moddle = createModdle();
+  const isC8 = cfg.platform === 'camunda8';
   const d = model.decisions[0];
   const decId = d.id;
+  // Also guarded in parseSheet; repeated here for models built or imported programmatically.
+  if (isC8 && C8_UNSUPPORTED_HIT_POLICIES.includes(String(d.hitPolicy).toUpperCase()))
+    throw new ConversionError([
+      {
+        message: `hit policy '${d.hitPolicy}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`,
+      },
+    ]);
 
   const input = d.inputs.map((i) =>
     moddle.create('dmn:InputClause', {
@@ -95,10 +115,11 @@ export async function buildDmn(model, cfg) {
   const decision = moddle.create('dmn:Decision', {
     id: decId,
     name: d.name,
-    ...(cfg.camunda.historyTimeToLive
+    // Camunda 7 extension attributes; omitted for Camunda 8 (unsupported there).
+    ...(!isC8 && cfg.camunda.historyTimeToLive
       ? { historyTimeToLive: String(cfg.camunda.historyTimeToLive) }
       : {}),
-    ...(cfg.camunda.versionTag ? { versionTag: String(cfg.camunda.versionTag) } : {}),
+    ...(!isC8 && cfg.camunda.versionTag ? { versionTag: String(cfg.camunda.versionTag) } : {}),
     decisionLogic: table,
   });
 
@@ -121,6 +142,13 @@ export async function buildDmn(model, cfg) {
     namespace: model.definitions.namespace || cfg.output.namespace,
     expressionLanguage: cfg.output.expressionLanguage,
     typeLanguage: cfg.output.typeLanguage,
+    // Camunda 8 modeler metadata; declares xmlns:modeler only when emitted.
+    ...(isC8
+      ? {
+          executionPlatform: cfg.camunda8.executionPlatform,
+          executionPlatformVersion: cfg.camunda8.executionPlatformVersion,
+        }
+      : {}),
     drgElement: [decision],
     dmnDI,
   });

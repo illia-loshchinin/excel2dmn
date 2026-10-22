@@ -2,7 +2,7 @@
 // Zero external deps: prompts via Node's built-in readline/promises.
 // Everything derives from DEFAULT_CONFIG so the wizard can never drift.
 import { createInterface } from 'node:readline/promises';
-import { DEFAULT_CONFIG, deepMerge } from './config.js';
+import { DEFAULT_CONFIG, deepMerge, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
 
 /** Read a value from a nested object by dot-path (e.g. 'markers.id'). */
 export function getPath(obj, path) {
@@ -100,6 +100,14 @@ export const PROMPTS = [
     type: 'boolean',
     default: false,
     label: 'Enable an allowed-values row (dropdowns; required for PRIORITY/OUTPUT ORDER)?',
+  },
+
+  {
+    section: 'Platform',
+    path: 'platform',
+    type: 'enum',
+    choices: ['camunda7', 'camunda8'],
+    label: 'Target platform',
   },
 
   {
@@ -231,6 +239,14 @@ export const PROMPTS = [
   },
 
   {
+    section: 'Camunda 8',
+    path: 'camunda8.executionPlatformVersion',
+    type: 'string',
+    label: 'Camunda 8 execution platform version',
+    advanced: true,
+  },
+
+  {
     section: 'Output',
     path: 'output.namespace',
     type: 'string',
@@ -295,6 +311,13 @@ export function promptDefault(spec) {
 export function promptChoices(spec) {
   if (spec.choicesFrom) return getPath(DEFAULT_CONFIG, spec.choicesFrom);
   return spec.choices;
+}
+
+/** Narrow a prompt by earlier answers: Camunda 8 offers only the hit policies it supports. */
+export function specForAnswers(spec, answers) {
+  if (spec.path !== 'hitPolicy.default' || answers.platform !== 'camunda8') return spec;
+  const choices = promptChoices(spec).filter((p) => !C8_UNSUPPORTED_HIT_POLICIES.includes(p));
+  return { ...spec, choicesFrom: undefined, choices };
 }
 
 function fmtDefault(v) {
@@ -429,7 +452,7 @@ export async function buildConfig({
         section = spec.section;
         write(`\n— ${section} —\n`);
       }
-      const value = await ask(promptFn, write, spec);
+      const value = await ask(promptFn, write, specForAnswers(spec, overrides));
       if (spec.special === 'allowedValues') {
         if (value) apply(ALLOWED_VALUES_OVERRIDE);
       } else {

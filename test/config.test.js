@@ -12,6 +12,24 @@ describe('config', () => {
     const cfg = loadConfig({ overrides: { markers: { id: 'KEY' } } });
     expect(cfg.markers.id).toBe('KEY');
   });
+  it('accepts the two valid platforms', () => {
+    expect(loadConfig({ overrides: { platform: 'camunda7' } }).platform).toBe('camunda7');
+    expect(loadConfig({ overrides: { platform: 'camunda8' } }).platform).toBe('camunda8');
+  });
+  it('rejects an unknown platform value', () => {
+    expect(() => loadConfig({ overrides: { platform: 'c8' } })).toThrow(/Invalid platform/);
+  });
+  it('rejects a Camunda 8 config whose fallback hit policy C8 does not support', () => {
+    const c8 = (hp) =>
+      loadConfig({ overrides: { platform: 'camunda8', hitPolicy: { default: hp } } });
+    expect(() => c8('PRIORITY')).toThrow(/not supported by Camunda 8/);
+    expect(() => c8('OUTPUT ORDER')).toThrow(/not supported by Camunda 8/);
+    expect(c8('FIRST').hitPolicy.default).toBe('FIRST');
+    // Camunda 7 still allows them.
+    expect(
+      loadConfig({ overrides: { hitPolicy: { default: 'PRIORITY' } } }).hitPolicy.default,
+    ).toBe('PRIORITY');
+  });
 });
 
 describe('ids', () => {

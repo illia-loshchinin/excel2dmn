@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { toNcNameId, cellRef, dedupe } from './ids.js';
 import { ProblemCollector } from './errors.js';
 import { createEntryValidator, isStringLiteral } from './feel-validate.js';
-import { isAnyType } from './config.js';
+import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
 
 function cellText(ws, row, col) {
   const cell = ws.getCell(row, col);
@@ -140,6 +140,9 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
         cellRef(ws.name, M + cfg.header.typeOffset, d.col),
       );
     else if (
+      // Camunda 8's FEEL engine supports the full DMN type set, so the narrow
+      // decision-table type restriction only applies to Camunda 7.
+      cfg.platform !== 'camunda8' &&
       cfg.types.nonCamundaTypeAction !== 'off' &&
       !isAnyType(d.typeRef, cfg) &&
       !cfg.types.camundaTypes.includes(d.typeRef)
@@ -162,6 +165,11 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     aggregation = cellText(ws, M + cfg.hitPolicy.aggregatorOffset, policyCol.col) || null;
   if (!cfg.hitPolicy.allowed.map((h) => h.toUpperCase()).includes(hitPolicy))
     problems.add(`unknown hit policy '${hitPolicy}'`);
+  // Camunda 8 does not implement the PRIORITY / OUTPUT ORDER hit policies.
+  else if (cfg.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(hitPolicy))
+    problems.add(
+      `hit policy '${hitPolicy}' is not supported by Camunda 8 (use COLLECT or RULE ORDER)`,
+    );
 
   if (['PRIORITY', 'OUTPUT ORDER'].includes(hitPolicy)) {
     for (const o of outputs)
@@ -194,7 +202,7 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
 
     if (cfg.validation.feel.mode !== 'off') {
       inputs.forEach((d, i) => {
-        if (cfg.validation.feel.mode === 'any-inputs' && d.typeRef !== cfg.types.anyKeyword) return;
+        if (cfg.validation.feel.mode === 'any-inputs' && !isAnyType(d.typeRef, cfg)) return;
         const err = check(inputEntries[i], d.typeRef, 'unary');
         if (err) problems.add(`input '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
       });

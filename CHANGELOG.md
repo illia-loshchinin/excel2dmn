@@ -8,6 +8,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Camunda 8 output target. Select it with `--platform camunda8` (or `"platform": "camunda8"` in the config). Camunda 8 files carry `modeler:executionPlatform="Camunda Cloud"` / `modeler:executionPlatformVersion` on `<definitions>` and omit the Camunda 7 `historyTimeToLive` / `versionTag` extension attributes. The execution-platform version is configurable via `camunda8.executionPlatformVersion` (default `8.6.0`).
+- Camunda 8 relaxes the Camunda 7 decision-table type restriction, so the full DMN/FEEL type set (`number`, `time`, `dateTime`, durations, …) is accepted. Camunda 7-only numeric types (`integer`/`long`/`double`) are normalized to `number` in Camunda 8 output (configurable via `types.camunda8NumericAlias`), since Camunda 8's type set has no integer/long/double.
+- Camunda 8 output rejects the `PRIORITY` and `OUTPUT ORDER` hit policies, which Camunda 8 does not support (only `UNIQUE`, `ANY`, `FIRST`, `RULE ORDER`, `COLLECT`).
+- `excel2dmn import` detects the source platform from `modeler:executionPlatform`, exposes it on the `importDmn` return, and prints a hint to re-convert Camunda 8 templates with `--platform camunda8` (the `.xlsx` template does not itself carry the platform).
 - `excel2dmn config` interactive config generator (step-by-step wizard with defaults; `--defaults` writes the full default config non-interactively, `--full` writes every key).
 - `excel2dmn.config.example.json` — a complete, ready-to-copy reference config.
 - Untyped columns may be written `any`, `none` or `object` (any casing); configurable via `types.anyAliases`.
@@ -17,6 +21,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **Breaking:** requires Node.js 20.12 or newer (Node 18 is end-of-life).
+- Standardised the wildcard/untyped column keyword to canonical **`Any`** (aligned with Camunda 8's documented type name). `any`/`none`/`object` are still accepted case-insensitively on input; reverse `import` now writes `Any` into the Excel type cell. Emitted DMN is unchanged (untyped columns still omit `typeRef`, matching the Camunda Modeler).
 - `commander` 12 → 15, `dmn-moddle` 12.0 → 12.2.
 - Patched vulnerable transitive dependencies (`fast-uri`, `brace-expansion`).
 

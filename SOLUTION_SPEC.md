@@ -57,12 +57,12 @@ The parser is **position-independent** — it does not assume markers are on row
 
 Every data column is described by a **4-row header (default)**. The header is found by scanning the **top of the sheet (rows 1–5)** for the first row that contains at least one `input` or `output` cell — that row is the **marker row** (row _M_). The three rows beneath it complete the header:
 
-| Row              | Meaning                                                                                                                                                                                                                                                                                                                                                                                   | Example   |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| _M_ (marker row) | **Marker** — one of `input`, `output`, `policy`, `id`, `name`, `annotations`, or blank (blank ⇒ helper column, ignored entirely)                                                                                                                                                                                                                                                          | `input`   |
-| _M+1_            | **Technical name** — the FEEL input variable / output name (camelCase)                                                                                                                                                                                                                                                                                                                    | `region`  |
-| _M+2_            | **Type** — `typeRef`. Use **Camunda types**: `string`, `boolean`, `integer`, `long`, `double`, `date`, `any`. The untyped type may also be written `none` or `object` (any casing — `Any`, `Object`, … — all mean untyped; see `types.anyAliases`, §7.1). DMN/FEEL-only types (`number`, `time`, `dateTime`, durations) are **rejected by default** (`types.nonCamundaTypeAction`, §7.1). | `integer` |
-| _M+3_            | **Label** — human-readable column title (directly above the rules)                                                                                                                                                                                                                                                                                                                        | `Region`  |
+| Row              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                   | Example   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| _M_ (marker row) | **Marker** — one of `input`, `output`, `policy`, `id`, `name`, `annotations`, or blank (blank ⇒ helper column, ignored entirely)                                                                                                                                                                                                                                                                                          | `input`   |
+| _M+1_            | **Technical name** — the FEEL input variable / output name (camelCase)                                                                                                                                                                                                                                                                                                                                                    | `region`  |
+| _M+2_            | **Type** — `typeRef`. Use **Camunda types**: `string`, `boolean`, `integer`, `long`, `double`, `date`, `Any`. The untyped type is canonically `Any` but may also be written `any`, `none` or `object` (any casing — `Any`, `Object`, … — all mean untyped; see `types.anyAliases`, §7.1). DMN/FEEL-only types (`number`, `time`, `dateTime`, durations) are **rejected by default** (`types.nonCamundaTypeAction`, §7.1). | `integer` |
+| _M+3_            | **Label** — human-readable column title (directly above the rules)                                                                                                                                                                                                                                                                                                                                                        | `Region`  |
 
 Rules start at **row _M+4_**. This 4-row layout is the **default** and matches typical hand-authored Camunda decision tables.
 
@@ -228,7 +228,7 @@ Notes:
 - `rule.seq` = the **1-based index** of the rule (used for ids: `rule_<seq>`, `<name>_<seq>`). `rule.row` = the **Excel row number** (used for error/analysis messages).
 - `inputEntries` / `outputEntries` arrays are **positionally aligned** with `inputs` / `outputs`.
 - Any input cell matching `rules.anyInputTokens` (default `["-", ""]` — a `-` **or an empty cell**) ⇒ `""` in `inputEntries`, emitted as `<text></text>` (DMN "any"; renders as `-`). Never a literal `<text>-</text>` by default. Empty output cell ⇒ `""` (emitted as an empty `<text></text>`).
-- `typeRef: "any"` ⇒ by default omit `typeRef` in the DMN (Camunda shows it as "Any"); set `types.anyDmnPlaceholder` to instead emit `typeRef="<value>"` (e.g. `"Any"`). The aliases `none`/`object` (any casing) are treated the same; on import, an untyped column's `typeRef` (`Any`/`None`/`object`/absent) is normalized to `any`.
+- `typeRef: "Any"` ⇒ by default omit `typeRef` in the DMN (Camunda shows it as "Any"); set `types.anyDmnPlaceholder` to instead emit `typeRef="<value>"` (e.g. `"Any"`). The aliases `any`/`none`/`object` (any casing) are treated the same; on import, an untyped column's `typeRef` (`Any`/`None`/`object`/absent) is normalized to the canonical `Any`.
 - **Allowed values (optional):** each input/output carries `allowedValues` — a verbatim FEEL list string (e.g. `"\"EU\",\"US\""`) or `null`. Non-null ⇒ `<inputValues>`/`<outputValues>` in the DMN (§6.1).
 - **Annotations (optional):** a rule's annotation value is carried as `rule.description` (a string). Blank/absent ⇒ the field is omitted and no `<description>` is emitted. There is **no** decision-level `annotations` array and no per-rule `annotationEntries` — annotations are just the rule description (§3.2).
 - Helper columns are not represented in the model at all — only `inputs`, `outputs`, rule entries, and (if present) rule `description` appear.
@@ -300,7 +300,7 @@ Verified Lezer node kinds: quoted string → `StringLiteral`; integer/decimal �
 | `number`/`integer`/`long`/`double` (`types.numeric`)                                               | `NumericLiteral`s — integers (`1`, `1221`) **and decimals** (`3.5`), ranges `[1..10]`, comparisons `>= 3`, lists `1, 2, 3`, `not(...)`. Camunda's editor uses `integer`/`long`/`double`; DMN/FEEL uses `number` — all validated identically. | any `StringLiteral` or `BooleanLiteral`; a bare `VariableName` (likely a typo) unless `allowExpressions` |
 | `string`                                                                                           | `StringLiteral`s — **quotes required** (`"EU"`), lists of quoted strings, `not(...)`, and (if `allowExpressions`) supported comparisons                                                                                                      | a bare `VariableName` (unquoted word — missing quotes); `NumericLiteral`/`BooleanLiteral`                |
 | `boolean`                                                                                          | `BooleanLiteral` — `true` / `false` (and `-`)                                                                                                                                                                                                | anything else (`"true"`, `1`, identifiers)                                                               |
-| `any` (`types.anyKeyword`; aliases `none`/`object`, any casing)                                    | any syntactically valid unary test (e.g. the `tags` expression)                                                                                                                                                                              | syntax errors only                                                                                       |
+| `Any` (`types.anyKeyword`; aliases `any`/`none`/`object`, any casing)                              | any syntactically valid unary test (e.g. the `tags` expression)                                                                                                                                                                              | syntax errors only                                                                                       |
 | `date` / `time` / `dateTime` / `dayTimeDuration` / `yearMonthDuration` (config `types.syntaxOnly`) | any syntactically valid unary test (e.g. `date("2026-01-01")`, `< date("2026-01-01")`)                                                                                                                                                       | syntax errors only — **no** literal-kind enforcement                                                     |
 
 **OUTPUT entries — validated by their `typeRef` (quotes enforced for `string` only).** Outputs are FEEL literal expressions, parsed with `parseExpression` and checked against the output column's `typeRef` using the same literal-kind rules as the table above:
@@ -380,7 +380,7 @@ For each decision (all ids follow the **readable, deterministic scheme** in §6.
 > - **Hit policy `UNIQUE` is the DMN default and moddle OMITS it from the XML.** It only writes `hitPolicy=` for non-default values (FIRST, COLLECT, …). This is correct and Camunda-compatible — do not treat a missing `hitPolicy` attribute as a bug.
 > - dmn-moddle import is a **named** export: `import { DmnModdle } from 'dmn-moddle'` (not a default import).
 
-`typeRef` handling: for `any` (and its aliases `none`/`object`, any casing) emit `types.anyDmnPlaceholder` when set, else omit the attribute; otherwise pass the type through. Only DMN 1.3 built-in FEEL types should reach the writer — validate against the allowed set and warn on unknowns.
+`typeRef` handling: for `Any` (and its aliases `any`/`none`/`object`, any casing) emit `types.anyDmnPlaceholder` when set, else omit the attribute; otherwise pass the type through. Only DMN 1.3 built-in FEEL types should reach the writer — validate against the allowed set and warn on unknowns.
 
 ### 6.2 DRD + DMNDI (layout)
 
@@ -516,6 +516,19 @@ Behavior:
 
 > **Verified** (dmn-moddle 12.0.1): the extension emits `camunda:historyTimeToLive="P180D"` / `camunda:versionTag="1.2"` on `<decision>` and re-parses with **0 warnings**.
 
+### 6.6 Camunda 8 target — `platform: "camunda8"`
+
+Setting `platform` to `"camunda8"` (config or `--platform camunda8`; default is `"camunda7"`) emits a Camunda 8 (Zeebe/SaaS) flavor of the same DMN 1.3:
+
+- Adds `modeler:executionPlatform="Camunda Cloud"` and `modeler:executionPlatformVersion` (config `camunda8.executionPlatformVersion`, default `"8.6.0"`) as attributes on `<definitions>`, via an inline `modeler` moddle extension (`http://camunda.org/schema/modeler/1.0`).
+- **Omits** the Camunda 7 `camunda:historyTimeToLive` / `camunda:versionTag` attributes (unsupported in Camunda 8 DMN). Because moddle only declares a namespace it actually uses, `xmlns:camunda` disappears and `xmlns:modeler` appears — the two never co-occur, so Camunda 7 output stays byte-identical.
+- Relaxes the Camunda 7 `types.camundaTypes` restriction (§5): Camunda 8's FEEL engine supports the full DMN/FEEL type set, so `number`, `time`, `dateTime`, and the duration types pass without warning. Camunda 8's type set has **no** `integer`/`long`/`double` (only `number`), so those C7-only numeric typeRefs are normalized to `number` on C8 output (`types.camunda8NumericAlias`, default `number`; set to `null` to emit them unchanged). C7 templates therefore convert to valid C8 without edits; C7 output is untouched.
+- **Rejects** the `PRIORITY` and `OUTPUT ORDER` hit policies with a conversion error: Camunda 8 supports only `UNIQUE`, `ANY`, `FIRST`, `RULE ORDER`, and `COLLECT`.
+- The default-namespace post-process (§6.3) rewrites only `dmn:` tags, so the `modeler:` attribute prefix and `xmlns:modeler` pass through untouched.
+- Everything else — decisionTable, inputs/outputs, rules, DMNDI — is identical standard DMN 1.3.
+
+Reverse `import` (§16) detects the source platform from `modeler:executionPlatform` (`"Camunda Cloud"` → `camunda8`) and registers the same extension so Camunda 8 files parse with 0 warnings. The detected platform is returned from `importDmn` and surfaced by the CLI as a hint. Note the generated `.xlsx` template does **not** carry the platform, so a Camunda 8 round-trip is a two-step: `import` then re-convert with `--platform camunda8` (otherwise the default Camunda 7 type check rejects C8-only types such as `number`).
+
 ---
 
 ## 7. CLI & config
@@ -606,9 +619,9 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
 
   // --- type mapping ---
   "types": {
-    "anyKeyword": "any", // canonical untyped keyword
+    "anyKeyword": "Any", // canonical untyped keyword (matches Camunda 8's "Any")
     "anyAliases": ["any", "none", "object"], // all mean "untyped" (matched case-insensitively);
-    // on import any of these is normalized to "any"
+    // on import any of these is normalized to "Any"
     "anyDmnPlaceholder": null, // typeRef written for an "any" column in the DMN:
     // null/"" → omit the attribute (Camunda shows "Any");
     // a string (e.g. "Any") → emit typeRef="<value>"
@@ -652,10 +665,16 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
   },
 
   // --- output serialization ---
+  "platform": "camunda7", // "camunda7" | "camunda8" (§6.6)
   // --- Camunda 7 extensions on <decision> (§6.5) ---
   "camunda": {
     "historyTimeToLive": "P180D", // null → omit; "P180D" or an integer day count
     "versionTag": null, // null → omit; else e.g. "1.0"
+  },
+  // --- Camunda 8 modeler metadata on <definitions> (§6.6); used when platform === "camunda8" ---
+  "camunda8": {
+    "executionPlatform": "Camunda Cloud",
+    "executionPlatformVersion": "8.6.0",
   },
 
   "output": {
