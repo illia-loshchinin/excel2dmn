@@ -27,7 +27,10 @@
             "type": "string",
             "enum": ["UNIQUE", "FIRST", "PRIORITY", "ANY", "COLLECT", "RULE ORDER", "OUTPUT ORDER"]
           },
-          "aggregation": { "type": ["string", "null"], "enum": ["SUM", "MIN", "MAX", "COUNT", null] },
+          "aggregation": {
+            "type": ["string", "null"],
+            "enum": ["SUM", "MIN", "MAX", "COUNT", null]
+          },
           "inputs": {
             "type": "array",
             "items": {

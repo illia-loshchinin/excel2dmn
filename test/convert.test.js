@@ -36,7 +36,6 @@ describe('Stage A — parse', () => {
     const d = (await firstModel('shipping_rates_DMN.xlsx')).decisions[0];
     expect(d.rules[0].description).toBe('standard EU parcel');
   });
-
 });
 
 describe('Stage B — build', () => {
@@ -91,13 +90,19 @@ describe('static analysis', () => {
 
   it('does NOT flag rules that differ on a boolean input (regression)', async () => {
     const model = await firstModel('repro_overlap.xlsx');
-    const { findings } = analyzeModel(model, loadConfig({ overrides: { analysis: { enabled: true } } }));
+    const { findings } = analyzeModel(
+      model,
+      loadConfig({ overrides: { analysis: { enabled: true } } }),
+    );
     expect(findings.filter((f) => f.check === 'overlap')).toHaveLength(0);
   });
 
   it('still flags a genuine boolean overlap', async () => {
     const model = await firstModel('genuine_overlap.xlsx');
-    const { findings } = analyzeModel(model, loadConfig({ overrides: { analysis: { enabled: true } } }));
+    const { findings } = analyzeModel(
+      model,
+      loadConfig({ overrides: { analysis: { enabled: true } } }),
+    );
     expect(findings.some((f) => f.check === 'overlap')).toBe(true);
   });
 

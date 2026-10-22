@@ -68,10 +68,16 @@ export async function buildDmn(model, cfg) {
       id: r.id,
       ...(r.description ? { description: r.description } : {}),
       inputEntry: r.inputEntries.map((text, i) =>
-        moddle.create('dmn:UnaryTests', { id: `${d.inputs[i].expression}_${r.seq ?? r.row}`, text }),
+        moddle.create('dmn:UnaryTests', {
+          id: `${d.inputs[i].expression}_${r.seq ?? r.row}`,
+          text,
+        }),
       ),
       outputEntry: r.outputEntries.map((text, i) =>
-        moddle.create('dmn:LiteralExpression', { id: `${d.outputs[i].name}_${r.seq ?? r.row}`, text }),
+        moddle.create('dmn:LiteralExpression', {
+          id: `${d.outputs[i].name}_${r.seq ?? r.row}`,
+          text,
+        }),
       ),
     }),
   );

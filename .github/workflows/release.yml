@@ -4,7 +4,7 @@ on:
     tags: ['v*']
 permissions:
   contents: read
-  id-token: write   # for npm provenance
+  id-token: write # for npm provenance
 jobs:
   publish:
     runs-on: ubuntu-latest
