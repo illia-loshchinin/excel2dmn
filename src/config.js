@@ -167,13 +167,39 @@ function assertValidConfig(cfg, source) {
 }
 
 /**
+ * Key paths in `user` that the defaults do not define (typos such as `platfrom`).
+ * Only objects present in the defaults are descended into; a top-level `$schema`
+ * (editor hint) is allowed.
+ */
+export function unknownConfigKeys(user, defaults = DEFAULT_CONFIG, prefix = '') {
+  const out = [];
+  for (const [k, v] of Object.entries(user)) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (!prefix && k === '$schema') continue;
+    if (!Object.hasOwn(defaults, k)) out.push(path);
+    else if (isObject(v) && isObject(defaults[k]))
+      out.push(...unknownConfigKeys(v, defaults[k], path));
+  }
+  return out;
+}
+
+const warnToStderr = (msg) => console.error(`warning: ${msg}`);
+
+/**
  * Resolve the effective config.
  * @param {object} opts
  * @param {string} [opts.configPath] explicit --config file
  * @param {string} [opts.cwd] working directory (for the default config file)
  * @param {object} [opts.overrides] CLI-derived overrides (highest precedence)
+ * @param {(msg:string)=>void} [opts.onWarning] receives non-fatal notes such as unknown keys
+ *   (default: printed to stderr)
  */
-export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } = {}) {
+export function loadConfig({
+  configPath,
+  cwd = process.cwd(),
+  overrides = {},
+  onWarning = warnToStderr,
+} = {}) {
   let fileConfig = {};
   const path = configPath || resolve(cwd, 'excel2dmn.config.json');
   const fromFile = Boolean(configPath || existsSync(path));
@@ -188,6 +214,9 @@ export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } =
     // Checked before merging: deepMerge would spread a string or null into an object.
     if (!isObject(fileConfig))
       throw new Error(`Invalid config ${path}:\n  config must be a JSON object`);
+    // Unknown keys are ignored, so a typo would silently fall back to the default (spec §7.1).
+    for (const key of unknownConfigKeys(fileConfig))
+      onWarning(`unknown config key "${key}" in ${path} (ignored)`);
   }
   const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
   assertValidConfig(merged, fromFile ? path : null);

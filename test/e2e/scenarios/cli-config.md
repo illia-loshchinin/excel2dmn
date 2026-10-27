@@ -482,8 +482,8 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 
 - **Given** a workbook with sheet `Rates` holding W1's data.
 - **When** `excel2dmn w.xlsx --sheet Rates`.
-- **Then** succeeds and writes `RATES.dmn`.
-- **Source** **spec conflict**: §7.1 ("`--sheet` → forces `sheet.match:"exact"` with the given name") says an explicitly named sheet is selected by exact name, replacing the `DMN` filter; §5 Step 1 says matching sheets are "optionally filtered by `--sheet`". This scenario follows §7.1, the more specific statement. If the fix team picks §5 instead, this scenario must change to "fails with no sheet", and the choice must be documented.
+- **Then** fails with no sheet; nothing written; the error names `"Rates"` and `"DMN"` and says `--sheet only narrows` the sheets selected by `sheet.match`/`sheet.value`.
+- **Source** spec §3 (decided: `--sheet` narrows the `DMN`-matched sheets; §7.1 no longer says it forces `sheet.match: "exact"`).
 
 ### CLI-074: `--sheet` uses exact (not substring) matching
 
@@ -540,7 +540,7 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 - **Given** W2 with the `Returns_ DMN` id changed to `SHIPPING`.
 - **When** `excel2dmn book.xlsx --out-dir out`.
 - **Then** fails; stderr names the id `SHIPPING` and both sheets `Shipping DMN` and `Returns_ DMN`; no `SHIPPING_2.dmn` (or any suffixed file) appears; at most one `SHIPPING.dmn`, and preferably none.
-- **Source** spec §3 intro ("A duplicate decision id across two sheets ⇒ hard error (they would overwrite each other) — fix the `id` markers"), §5 Step 1 ("Track decision ids across sheets and error on a duplicate"). **spec conflict**: §6.4 and §7.1 `identity.collisionSuffix` describe suffixing `_2` on collision "across the repo". This scenario follows §3/§5, which speak to sheets of one workbook.
+- **Source** spec §3 intro ("A duplicate decision id across two sheets ⇒ hard error (they would overwrite each other) — fix the `id` markers"), §5 Step 1 ("Track decision ids across sheets and error on a duplicate"). **spec conflict**: §6.4 and §7.1 `identity.collisionSuffix` describe suffixing `_2` on collision "across the repo". Decided: hard error, as §3/§5 say; §6.4 and §7.1 were corrected (`collisionSuffix` only applies to rule ids inside one decision).
 
 ### CLI-086: duplicate ids that only collide after sanitization
 
@@ -1047,8 +1047,8 @@ and the rule ids, not on full sentences.
 
 - **Given** W1, config `{ "platfrom": "camunda8" }` (typo).
 - **When** convert.
-- **Then** fails (exit 1) naming `platfrom` as an unknown key; no `.dmn` written.
-- **Source** spec §7.1 (validated against a shipped schema). **spec silent** on additional properties. Reasonable: reject, because a silently ignored typo would produce a Camunda 7 file the user did not ask for. A warning on stderr with exit 0 is the acceptable weaker alternative; the choice must be documented.
+- **Then** exit `0`; stderr has one `unknown config key "<path>"` warning per unknown key, naming its full path (also nested ones such as `header.scanrows` and `types.number.allowExpression`); a top-level `$schema` is not reported; the typo falls back to the default (a Camunda 7 file).
+- **Source** spec §7.1 "Unknown keys" (decided: a stderr warning, not an error).
 
 ### CLI-174: config validation errors are reported all at once
 
@@ -1194,6 +1194,13 @@ and the rule ids, not on full sentences.
 - **Then** rule ids are `r5`, `r6` in both the model and the DMN.
 - **Source** spec §7.1 rules of use ("`<row>` for the Excel row").
 
+### CLI-203a: `identity.collisionSuffix` de-duplicates rule ids from a fixed `idTemplate`
+
+- **Given** W1, config `{ "rules": { "idTemplate": "rule" }, "identity": { "collisionSuffix": "-" } }`.
+- **When** convert.
+- **Then** succeeds; the rule ids are `rule`, `rule-2`.
+- **Source** spec §7.1 (`collisionSuffix` applies to ids inside one decision).
+
 ### CLI-204: `identity.idCase: "preserve"`
 
 - **Given** W1 with id `Rates Table`, config `{ "identity": { "idCase": "preserve" } }`.
@@ -1283,7 +1290,7 @@ and the rule ids, not on full sentences.
 
 - **Given** empty `T`. **When** `excel2dmn init --sheet "Pricing" -o p.xlsx`.
 - **Then** exit `0`; the file is written; a warning on stderr says the sheet name does not match the configured sheet filter (`DMN`) so `excel2dmn` will not convert it.
-- **Source** spec §7.2 ("a single `… DMN` sheet"; the template must round-trip). **spec silent** on the handling; warning is the least surprising option. Converting `p.xlsx` afterwards fails as in CLI-014.
+- **Source** spec §7.2 (decided: write the file and warn). Converting `p.xlsx` afterwards fails as in CLI-014.
 
 ### CLI-222: `--minimal` drops the annotation column and example rules
 
@@ -1338,8 +1345,8 @@ and the rule ids, not on full sentences.
 
 - **Given** `T/decision_DMN.xlsx` exists (any content).
 - **When** `excel2dmn init`.
-- **Then** **spec silent**. Reasonable expectation: refuse with exit 1 and a message naming the file and how to overwrite it (mirrors `config` without `--force`), so a filled-in template is never clobbered. If the implementation chooses to overwrite instead, that must be documented in `--help`; the test should pin whichever is chosen.
-- **Source** README "Configuration" (the `config` command protects existing files); spec §7.2 silent.
+- **Then** exit `1`; the message names the file and `--force`; the file is unchanged. `excel2dmn init --force` then replaces it with a template that converts.
+- **Source** spec §7.2 (decided: refuse without `--force`).
 
 ### CLI-230: `init` output re-imports the example rules exactly
 
@@ -1418,7 +1425,7 @@ and the rule ids, not on full sentences.
 - **Given** empty `T`.
 - **When** `excel2dmn config` with `input` = a newline for every prompt (enough newlines for the essential prompts plus the "advanced?" prompt, e.g. 30 × `\n`).
 - **Then** exit `0`; `T/excel2dmn.config.json` parses to `{}` (the wizard writes only keys that differ from the defaults); stdout shows the wizard's intro line and at least one `[default]` hint.
-- **Source** README ("walks you through the common settings … press Enter to accept it"; "By default the wizard writes only the keys you changed (a minimal file)"). **spec silent** on whether piped (non-TTY) stdin drives the wizard; the reasonable expectation is that it does, so the wizard is scriptable. If the implementation instead treats non-TTY stdin as `--defaults`, it must say so on stderr, and this scenario's expected file becomes the full default config (CLI-240).
+- **Source** README ("walks you through the common settings … press Enter to accept it"; "By default the wizard writes only the keys you changed (a minimal file)"). Decided: piped (non-TTY) stdin does not drive the wizard; it writes the full default config (CLI-240) and says so on stderr. CLI-251..259 therefore drive the wizard itself through `buildConfig`'s `prompt` hook (as CLI-258 does), with the same answers the scenarios list.
 
 ### CLI-251: wizard via stdin: choose Camunda 8
 

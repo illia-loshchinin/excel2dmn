@@ -584,8 +584,7 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
       expect(existsSync(p('in', 'result.xlsx'))).toBe(false);
     });
 
-    // BEHAVIOR-QUESTION: should import create missing parent dirs of -o like convert does (spec silent)?
-    it.fails('IMPORT-004 -o into a directory that does not exist yet', async () => {
+    it('IMPORT-004 -o into a directory that does not exist yet', async () => {
       const dmn = await feesDmn();
       const r = cli(['import', dmn, '-o', 'new/deeper/x.xlsx']);
       expectOk(r);
@@ -919,12 +918,16 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
       expect(xml2).toBe(readText(p(dmn)));
     });
 
-    // BEHAVIOR-QUESTION: should import print an allowedValuesOffset hint after the 5-row auto-upgrade (spec silent)?
-    it.fails('IMPORT-037 the 5-row auto-upgrade is announced', async () => {
+    it('IMPORT-037 the 5-row auto-upgrade is announced', async () => {
       writeJson('av.json', ALLOWED_VALUES_LAYOUT);
       const dmn = await feesDmn({ av: true, flags: ['--config', 'av.json'] });
       const { r } = await importOk(dmn, 'back.xlsx');
-      expect(r.stdout).toContain('allowedValuesOffset');
+      for (const key of ['allowedValuesOffset', 'labelOffset', 'startOffset'])
+        expect(r.stdout).toContain(key);
+      // The import under the 5-row config itself needs no hint.
+      const again = cli(['import', dmn, '-o', 'again.xlsx', '--config', 'av.json']);
+      expectOk(again);
+      expect(again.stdout).not.toContain('allowedValuesOffset');
     });
 
     it('IMPORT-038 no auto-upgrade when the DMN has no allowed values', async () => {
@@ -1895,8 +1898,7 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
       expectNoXlsx();
     });
 
-    // BEHAVIOR-QUESTION: should read errors name the input path (EISDIR message has none; spec silent)?
-    it.fails('IMPORT-105 input is a directory', () => {
+    it('IMPORT-105 input is a directory', () => {
       mkdirSync(p('dir.dmn'));
       const r = cli(['import', 'dir.dmn']);
       expect(r.code).toBe(1);
@@ -1942,20 +1944,20 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
       expectNoXlsx();
     });
 
-    // BEHAVIOR-QUESTION: should a non-1.3 MODEL namespace get a 'not DMN 1.3' message instead of moddle's (spec silent)?
-    it.fails('IMPORT-109 DMN 1.1 / 1.2 namespace', () => {
-      writeDmn(
-        'old.dmn',
-        D_MODELER_C7.replace(
-          `xmlns="${MODEL_NS}"`,
-          'xmlns="http://www.omg.org/spec/DMN/20151101/dmn.xsd"',
-        ),
-      );
-      const r = cli(['import', 'old.dmn']);
-      expect(r.code).toBe(1);
-      expectCleanFail(r);
-      expect(r.stderr).toMatch(/DMN 1\.3|no .*decision ?table|decisionTable/i);
-      expectNoXlsx();
+    it('IMPORT-109 DMN 1.1 / 1.2 namespace', () => {
+      for (const [version, ns] of [
+        ['1.1', 'http://www.omg.org/spec/DMN/20151101/dmn.xsd'],
+        ['1.2', 'http://www.omg.org/spec/DMN/20180521/MODEL/'],
+      ]) {
+        writeDmn('old.dmn', D_MODELER_C7.replace(`xmlns="${MODEL_NS}"`, `xmlns="${ns}"`));
+        const r = cli(['import', 'old.dmn']);
+        expect(r.code).toBe(1);
+        expectCleanFail(r);
+        expect(r.stderr).toContain('old.dmn');
+        expect(r.stderr).toContain(`DMN ${version}`);
+        expect(r.stderr).toContain('not DMN 1.3');
+        expectNoXlsx();
+      }
     });
 
     it('IMPORT-110 only a literal-expression decision', () => {

@@ -48,8 +48,8 @@ Pipeline: `.xlsx` → **parse** → `model.json` → **build (dmn-moddle)** → 
 
 - **0 matching sheets** ⇒ hard error: "no sheet containing 'DMN' found".
 - **N matching sheets** ⇒ N independent outputs. Each sheet is **fully self-contained**: its own `id`/`name`/`policy` markers, its own rule rows, its own `<definitions>`. Sheets do not reference each other.
-- `--sheet <name...>` restricts processing to a subset (otherwise all matching sheets are converted).
-- Output filenames derive from each sheet's decision id (§7). A **duplicate decision id across two sheets** ⇒ hard error (they would overwrite each other) — fix the `id` markers.
+- `--sheet <name...>` restricts processing to a subset (otherwise all matching sheets are converted). It **narrows** the sheets that `sheet.match`/`sheet.value` already select, by exact name: a sheet whose name does not match (e.g. `Rates` under the default `contains "DMN"`) cannot be picked with `--sheet`, and the error says so.
+- Output filenames derive from each sheet's decision id (§7). A **duplicate decision id across two sheets** ⇒ hard error (they would overwrite each other) — fix the `id` markers. Ids are compared **after sanitization and case-folded** (`Zürich Süd` and `ZURICH_SUD` collide, and so do `shipping` and `SHIPPING` under `idCase: "preserve"`, since case-insensitive file systems would map them to one file). The error names the id and every sheet that uses it; none of those sheets is written, the other sheets are, and the exit code is 1. Sheets excluded by `--sheet` take no part in the check.
 
 The parser is **position-independent** — it does not assume markers are on row 1. It locates the header by the **marker row** and reads rules from the rows beneath it via the `input`/`output` columns (see §3.1 and the algorithm in §5).
 
@@ -468,7 +468,7 @@ The target file also declares `xmlns:ns0="http://camunda.org/schema/1.0/dmn"` �
   }
   ```
 
-  Verified: `SHIPPING_RATES` → unchanged; `Zürich Süd` → `ZURICH_SUD`. The explicit `FOLD` map is **required** — `ł`/`Ł` (and `ø`, `đ`, `ß`) do **not** decompose under NFD and would otherwise be dropped (e.g. `Straße` folds to `STRASSE` only via the map; without it `ł`-words lose the letter). If two decisions across the repo produce the same id, suffix `_2`, `_3`, … on collision.
+  Verified: `SHIPPING_RATES` → unchanged; `Zürich Süd` → `ZURICH_SUD`. The explicit `FOLD` map is **required** — `ł`/`Ł` (and `ø`, `đ`, `ß`) do **not** decompose under NFD and would otherwise be dropped (e.g. `Straße` folds to `STRASSE` only via the map; without it `ł`-words lose the letter). Two sheets that produce the same id are an error (§3), never suffixed.
 
 - **`<rule><description>` = the annotation.** A rule emits `<description>` **only when its `annotations` column has a value** (§3.2); rules without an annotation have no `<description>` (matching the earlier target file, which had no annotations). This is exactly how Camunda's decision-table annotation column is stored. Helper columns like `No.` (and any legacy `DMN_X` column) are not carried anywhere — they are ignored entirely (§3.2).
 - `preferredOrientation="Rule-as-Row"` is present on `<decisionTable>` in the target — always set it.
@@ -553,6 +553,8 @@ excel2dmn <input.xlsx> [options]     # convert (default command)
 excel2dmn init [options]             # write a starter template workbook (§7.2)
 ```
 
+**Output channels.** stdout carries one success line per written sheet (`✓ <sheet> → <path>`), import/init/config success lines, `ℹ` hints and the analysis report. **stderr** carries everything else: errors (`error: …`, `✗ <sheet>:` blocks with `[Sheet!Cell]` problems), and **warnings**, one per line, as `⚠ <sheet>: [<Sheet!Cell>] <message>` for conversion warnings (`types.nonCamundaTypeAction: "warn"`, a table with zero input columns) or `warning: <message>` for CLI/config warnings (unknown config keys, an `init --sheet` name the converter will not select). Warnings never change the exit code; `analysis.failOn` does. Read errors for the input file name its path (`Cannot read <path>: it is a directory, not a file`, `… no such file or directory`, `… permission denied`).
+
 **Output filenames (one per DMN sheet).** Each `.dmn` is named from that sheet's decision id via `output.fileNameTemplate` (default `"<decisionId>.dmn"`, e.g. `SHIPPING_RATES.dmn`, `RETURNS.dmn`), written into `--out-dir`. `--out <file>` is a convenience for the single-sheet case and errors when 2+ sheets match. Files are emitted **atomically per sheet** — a validation error in sheet B does not delete sheet A's already-written output, but the process still exits non-zero and reports every failing sheet.
 
 ### 7.1 Config file — `excel2dmn.config.json`
@@ -607,7 +609,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
     "sanitizeId": true, // apply toNcNameId to decision.id
     "idCase": "upper", // "upper" | "preserve"
     "foldMap": { "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss" },
-    "collisionSuffix": "_", // _2, _3 … on duplicate ids
+    "collisionSuffix": "_", // _2, _3 … on duplicate rule ids inside one decision (e.g. an idTemplate without <n>/<row>); decision ids are never suffixed (§3)
   },
 
   // --- hit policy ---
@@ -700,7 +702,9 @@ Rules of use:
 - `identity` fully controls decision id/name derivation (§6.4); `output.namespaceStyle` toggles the §6.3 post-process.
 - Every field has a default (the values shown are the defaults), so an **empty or absent config file works out of the box**.
 
-CLI flags map onto config paths: `--hit-policy` → `hitPolicy.default`, `--namespace` → `output.namespace`, `--sheet` → forces `sheet.match:"exact"` with the given name. `--config <file>` points at an alternate JSON.
+CLI flags map onto config paths: `--hit-policy` → `hitPolicy.default`, `--namespace` → `output.namespace`, `--platform` → `platform`, `--out-dir` → `output.outDir`. `--sheet` has no config equivalent: it narrows the sheets selected by `sheet.*` to the exact names given (§3). `--config <file>` points at an alternate JSON.
+
+**Unknown keys.** A key the defaults do not define (e.g. a typo such as `platfrom` or `header.scanrows`) is **ignored with a warning on stderr** naming its full path — `warning: unknown config key "header.scanrows" in <file> (ignored)` — and is not an error, so configs written for a newer version still load. A top-level `$schema` key (an editor hint) is allowed silently. Known keys with a wrong type or value are errors (exit 1), all reported at once.
 
 ### 7.2 `excel2dmn init` — starter-template generator
 
@@ -709,7 +713,10 @@ The single biggest adoption barrier is "how do I lay out the sheet?" — so ship
 ```
 excel2dmn init [--out <file>] [--name "<Decision name>"] [--sheet "<Sheet name>"]
                [--minimal]        # skip the example rules / annotation column
+               [--force]          # overwrite an existing file
 ```
+
+`init` **refuses to overwrite** an existing file (exit 1, `use --force to overwrite`); pass `--force` to replace it. When `--sheet` names a sheet that the current `sheet.*` config would not select (e.g. `Pricing` without `DMN`), the template is still written but a `warning:` on stderr says the converter will not pick it up.
 
 It emits an `.xlsx` (default `decision_DMN.xlsx`) with a single `… DMN` sheet containing the header pre-populated from the current config's markers (5-row when allowed values are enabled, else 4-row):
 
@@ -719,6 +726,18 @@ It emits an `.xlsx` (default `decision_DMN.xlsx`) with a single `… DMN` sheet 
 - A short **instructions** helper column / cell explaining each marker (ignored by the converter since it isn't a recognized marker).
 
 Built with `exceljs` (styling: header fill, frozen header rows, column widths). The generated file must **round-trip** — running `excel2dmn` on a freshly `init`-ed workbook produces a valid `.dmn` with 0 warnings (add this as a test). Keep the generator config-aware: if the user renamed markers (e.g. `id`→`KEY`), `init` writes the renamed markers so the template always matches their setup.
+
+### 7.3 `excel2dmn import` — DMN → Excel
+
+```
+excel2dmn import <input.dmn> [-o <file.xlsx>] [--config <file>]
+```
+
+- Writes `<input>.xlsx` beside the source (or `-o`), **creating missing parent directories** like convert does, and overwriting an existing workbook.
+- Only **DMN 1.3** is accepted. A root `<definitions>` in the DMN 1.1 (`…/DMN/20151101/dmn.xsd`), 1.2 (`…/DMN/20180521/MODEL/`), 1.4 or 1.5 MODEL namespace is rejected with `Cannot import <path>: this is a DMN 1.x file (namespace …), not DMN 1.3` — open and save it in a current Camunda Modeler to upgrade it.
+- When the DMN carries allowed values (`<inputValues>`/`<outputValues>`) but the config has no allowed-values row, the template switches to the 5-row layout so nothing is lost, and stdout prints a hint naming the config needed to convert it back: `header.allowedValuesOffset 3`, `header.labelOffset 4`, `rules.startOffset 5`.
+- A Camunda 8 source prints a hint to re-convert with `--platform camunda8` (§6.6).
+- Read and write errors name the path.
 
 `.gitlab-ci.yml`:
 

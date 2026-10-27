@@ -1,8 +1,8 @@
 // Stage A: parse a workbook into intermediate models (one per DMN sheet). Spec §5.
 import ExcelJS from 'exceljs';
-import { existsSync } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
 import { toNcNameId, cellRef, dedupe } from './ids.js';
-import { ProblemCollector } from './errors.js';
+import { ProblemCollector, readError } from './errors.js';
 import { createEntryValidator, isStringLiteral, analyzeFeel } from './feel-validate.js';
 import { parseDomain, outOfDomain } from './domain.js';
 import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
@@ -15,16 +15,18 @@ function cellText(ws, row, col) {
   return v == null ? '' : String(v).trim();
 }
 
-export function selectSheets(workbook, cfg, only) {
+/** Whether the converter selects a sheet of this name (`cfg.sheet` match rules). */
+export function sheetMatches(name, cfg) {
   const { match, value, caseInsensitive } = cfg.sheet;
-  const test = (name) => {
-    const a = caseInsensitive ? name.toLowerCase() : name;
-    const b = caseInsensitive ? value.toLowerCase() : value;
-    if (match === 'exact') return a === b;
-    if (match === 'regex') return new RegExp(value, caseInsensitive ? 'i' : '').test(name);
-    return a.includes(b);
-  };
-  let sheets = workbook.worksheets.filter((ws) => test(ws.name));
+  const a = caseInsensitive ? name.toLowerCase() : name;
+  const b = caseInsensitive ? value.toLowerCase() : value;
+  if (match === 'exact') return a === b;
+  if (match === 'regex') return new RegExp(value, caseInsensitive ? 'i' : '').test(name);
+  return a.includes(b);
+}
+
+export function selectSheets(workbook, cfg, only) {
+  let sheets = workbook.worksheets.filter((ws) => sheetMatches(ws.name, cfg));
   if (only && only.length) sheets = sheets.filter((ws) => only.includes(ws.name));
   return sheets;
 }
@@ -52,7 +54,7 @@ function findMarkerRow(ws, cfg) {
   return 0;
 }
 
-export function parseSheet(ws, cfg, seenDecisionIds) {
+export function parseSheet(ws, cfg) {
   const problems = new ProblemCollector({ failFast: cfg.validation.feel.failFast });
   const warnings = [];
   const check = createEntryValidator(cfg);
@@ -230,6 +232,7 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   const io = [...inputs, ...outputs];
   const startRow = M + cfg.rules.startOffset;
   const rules = [];
+  const ruleIds = new Set();
   let seq = 0;
   const anyTokens = new Set(cfg.rules.anyInputTokens || []);
   const normInput = (t) => (anyTokens.has(t) ? cfg.rules.emitAnyInputAs : t);
@@ -276,7 +279,12 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
 
     seq += 1;
     const rule = {
-      id: cfg.rules.idTemplate.replace('<n>', String(seq)).replace('<row>', String(r)),
+      // A template without <n>/<row> would repeat; collisionSuffix keeps rule ids unique.
+      id: dedupe(
+        cfg.rules.idTemplate.replace('<n>', String(seq)).replace('<row>', String(r)),
+        ruleIds,
+        cfg.identity.collisionSuffix,
+      ),
       seq,
       row: r,
       inputEntries,
@@ -293,18 +301,17 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   const decisionId = cfg.identity.sanitizeId
     ? toNcNameId(idCol.name, { upper: cfg.identity.idCase === 'upper' })
     : idCol.name;
-  const uniqueId = dedupe(decisionId, seenDecisionIds, cfg.identity.collisionSuffix);
   const decisionName = nameCol && nameCol.name ? nameCol.name : idCol.name;
 
   return {
     definitions: {
-      id: `definitions_${uniqueId}`,
+      id: `definitions_${decisionId}`,
       name: decisionName,
       namespace: cfg.output.namespace,
     },
     decisions: [
       {
-        id: uniqueId,
+        id: decisionId,
         name: decisionName,
         hitPolicy,
         aggregation,
@@ -334,31 +341,60 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
 export async function parseWorkbookSheets(path, cfg, { sheet } = {}) {
   const workbook = new ExcelJS.Workbook();
   try {
+    // exceljs reports a directory as a corrupt zip and a missing file without the
+    // error code, so check readability first and name the path (spec §7).
+    if (statSync(path).isDirectory()) throw Object.assign(new Error('EISDIR'), { code: 'EISDIR' });
+    accessSync(path, constants.R_OK);
     await workbook.xlsx.readFile(path);
   } catch (err) {
-    // A missing file keeps its own message; anything else is an unreadable workbook.
-    if (err.code === 'ENOENT' || !existsSync(path)) throw err;
-    throw new Error(`${path} is not a valid .xlsx workbook (${err.message})`);
+    throw (
+      readError(path, err) || new Error(`${path} is not a valid .xlsx workbook (${err.message})`)
+    );
   }
   const sheets = selectSheets(workbook, cfg, sheet);
   if (sheets.length === 0) {
     const wanted = sheet && sheet.length ? sheet.map((n) => `"${n}"`).join(', ') : null;
     throw new Error(
       wanted
-        ? `No sheet named ${wanted} matching "${cfg.sheet.value}" found in ${path}`
+        ? `No sheet named ${wanted} matching "${cfg.sheet.value}" found in ${path} (--sheet only narrows the sheets selected by sheet.match/sheet.value; rename the sheet or change the sheet config)`
         : `No sheet matching "${cfg.sheet.value}" found in ${path}`,
     );
   }
-  const seenDecisionIds = new Set();
-  return sheets.map((ws) => {
+  const parsed = sheets.map((ws) => {
     try {
-      const model = parseSheet(ws, cfg, seenDecisionIds);
+      const model = parseSheet(ws, cfg);
       model.__sheet = ws.name;
       return { sheet: ws.name, model };
     } catch (error) {
       return { sheet: ws.name, error };
     }
   });
+  return rejectDuplicateIds(parsed);
+}
+
+/**
+ * Two sheets with the same decision id would write the same file, so every sheet in
+ * the collision fails (spec §3). Ids are compared case-folded: `shipping.dmn` and
+ * `SHIPPING.dmn` are one file on case-insensitive file systems.
+ */
+function rejectDuplicateIds(parsed) {
+  const byId = new Map();
+  for (const p of parsed.filter((p) => p.model)) {
+    const key = p.model.decisions[0].id.toLowerCase();
+    byId.set(key, [...(byId.get(key) || []), p]);
+  }
+  for (const group of byId.values()) {
+    if (group.length < 2) continue;
+    const names = group.map((p) => `"${p.sheet}"`).join(', ');
+    const ids = [...new Set(group.map((p) => p.model.decisions[0].id))].join("' / '");
+    for (const p of group) {
+      p.error = new Error(
+        `duplicate decision id '${ids}' in sheets ${names} — each sheet needs its own id (the files would overwrite each other)`,
+      );
+      delete p.model;
+    }
+  }
+  return parsed;
 }
 
 /** Parse all selected sheets; throws the first sheet's error if any sheet is invalid. */

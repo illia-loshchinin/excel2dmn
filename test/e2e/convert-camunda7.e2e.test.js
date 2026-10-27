@@ -182,9 +182,6 @@ function scenario(id, title, fn, test = it) {
   });
 }
 
-/** A scenario whose expected behavior is an open question: runs as `it.fails`. */
-scenario.fails = (id, title, fn) => scenario(id, title, fn, it.fails);
-
 describe.concurrent('Camunda 7 Excel -> DMN conversion (e2e)', { timeout: 120_000 }, () => {
   describe('1. Baseline document shape', () => {
     scenario(
@@ -2474,8 +2471,7 @@ describe.concurrent('Camunda 7 Excel -> DMN conversion (e2e)', { timeout: 120_00
       },
     );
 
-    // BEHAVIOR-QUESTION: spec §3/§5 say a cross-sheet duplicate id is a hard error, but §6.4 and identity.collisionSuffix say suffix _2.
-    scenario.fails('CAMUNDA7-195', 'Duplicate decision id across two sheets', async (dir) => {
+    scenario('CAMUNDA7-195', 'Duplicate decision id across two sheets', async (dir) => {
       const r = await convertBook(
         dir,
         { 'A DMN': setCells(w0(), { A2: 'SAME' }), 'B DMN': setCells(w0(), { A2: 'SAME' }) },

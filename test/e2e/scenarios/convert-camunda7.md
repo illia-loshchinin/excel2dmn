@@ -1375,7 +1375,7 @@ allowed 4, label 5, rules from row 6.
 
 - **Given** sheets `A DMN` and `B DMN`, both with id `SAME`.
 - **When** C0.
-- **Then** **spec conflict.** §3 intro and §5 Step 1 say a duplicate decision id across sheets is a **hard error** ("they would overwrite each other — fix the `id` markers"). §6.4 says "suffix `_2`, `_3` … on collision" for ids across the repo. Expected (per the more specific §3/§5): exit `1`, with the error naming the duplicate id `SAME` and both sheets. Under no circumstances may one file silently overwrite the other.
+- **Then** **spec conflict.** §3 intro and §5 Step 1 say a duplicate decision id across sheets is a **hard error** ("they would overwrite each other — fix the `id` markers"). §6.4 says "suffix `_2`, `_3` … on collision" for ids across the repo. Decided: §3/§5 win (§6.4 corrected). Expected: exit `1`, with the error naming the duplicate id `SAME` and both sheets; no `SAME*.dmn` is written. Under no circumstances may one file silently overwrite the other.
 - **Source** spec §3 intro, §5 Step 1, §6.4.
 
 ### CAMUNDA7-196: Config auto-loaded from `excel2dmn.config.json` in cwd

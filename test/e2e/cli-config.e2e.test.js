@@ -17,7 +17,7 @@ import {
 import ExcelJS from 'exceljs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { convert, loadConfig, DEFAULT_CONFIG, deepMerge } from '../../src/index.js';
-import { buildConfig, PROMPTS } from '../../src/init-config.js';
+import { buildConfig, PROMPTS, serializeConfig } from '../../src/init-config.js';
 import {
   CLI,
   tempDir,
@@ -287,6 +287,27 @@ function wizardInput({ essentials = {}, advanced = false, adv = {}, before = {} 
     for (const spec of PROMPTS.filter((p) => p.advanced)) out.push(adv[spec.path] ?? '');
   return `${[...out, ...Array(10).fill('')].join('\n')}\n`;
 }
+
+/**
+ * Run the real wizard (`buildConfig`) answering from `input` (as built by wizardInput).
+ * Piped stdin is not a TTY, where the CLI writes the defaults instead (decided; see
+ * CLI-250), so the wizard is driven through its `prompt` hook like CLI-258.
+ * `stdout` is everything the wizard printed, prompts included.
+ */
+async function runWizard(input, { full = false } = {}) {
+  const answers = input.split('\n');
+  let stdout = '';
+  const prompt = async (q) => {
+    stdout += q;
+    return answers.shift() ?? '';
+  };
+  const cfg = await buildConfig({ prompt, output: { write: (t) => (stdout += t) }, full });
+  return { cfg, stdout };
+}
+
+/** Write a wizard result as the CLI would (`serializeConfig`) to `dir/file`. */
+const saveWizard = (dir, cfg, file = CWD_CFG) =>
+  writeFileSync(join(dir, file), serializeConfig(cfg), 'utf8');
 
 const HAS_PTY = spawnSync('script', ['--version'], { encoding: 'utf8' }).status === 0;
 
@@ -915,13 +936,12 @@ describe('F. --sheet filtering', OPTS, () => {
     expectFailNothingWritten(r, dir, 'no sheet', 'Missing DMN');
   });
 
-  // BEHAVIOR-QUESTION: spec §7.1 says --sheet forces sheet.match "exact", §3/§5 say it filters the DMN-matched sheets; current code filters.
-  it.fails('CLI-073 --sheet naming a sheet without DMN in its name', async () => {
+  // Decided: --sheet narrows the sheets that sheet.match/sheet.value already select.
+  it('CLI-073 --sheet naming a sheet without DMN in its name', async () => {
     const dir = T();
     await book(dir, 'w.xlsx', { Rates: w1() });
     const r = cli(dir, ['w.xlsx', '--sheet', 'Rates']);
-    await expectOk(r, dir);
-    expect(dmnFiles(dir)).toEqual(['RATES.dmn']);
+    expectFailNothingWritten(r, dir, '"Rates"', '"DMN"', '--sheet only narrows');
   });
 
   it('CLI-074 --sheet uses exact (not substring) matching', async () => {
@@ -1005,8 +1025,7 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     expectFailNothingWritten(r, dir, 'Shipping DMN!B5', 'Returns_ DMN!B5');
   });
 
-  // BEHAVIOR-QUESTION: spec §3/§5 call a duplicate decision id a hard error, §7.1 identity.collisionSuffix documents _2 suffixing (current).
-  it.fails('CLI-085 duplicate decision ids across sheets are a hard error', async () => {
+  it('CLI-085 duplicate decision ids across sheets are a hard error', async () => {
     const dir = T();
     await book(dir, 'book.xlsx', w2({ returnsId: 'SHIPPING' }));
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
@@ -1016,8 +1035,7 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     expect(files.length).toBeLessThanOrEqual(1);
   });
 
-  // BEHAVIOR-QUESTION: same §3/§5 vs §7.1 collisionSuffix conflict as CLI-085, for ids equal after sanitization.
-  it.fails('CLI-086 duplicate ids that only collide after sanitization', async () => {
+  it('CLI-086 duplicate ids that only collide after sanitization', async () => {
     const dir = T();
     await book(dir, 'book.xlsx', w2({ shippingId: 'Zürich Süd', returnsId: 'ZURICH_SUD' }));
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
@@ -1027,8 +1045,7 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     expect(files.length).toBeLessThanOrEqual(1);
   });
 
-  // BEHAVIOR-QUESTION: same §3/§5 vs §7.1 collisionSuffix conflict as CLI-085, for ids equal after case folding.
-  it.fails('CLI-087 duplicate ids are case-folded before comparison', async () => {
+  it('CLI-087 duplicate ids are case-folded before comparison', async () => {
     const dir = T();
     await book(dir, 'book.xlsx', w2({ shippingId: 'shipping', returnsId: 'SHIPPING' }));
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
@@ -1782,9 +1799,28 @@ describe('J. Config file discovery, precedence and validation', OPTS, () => {
     ]);
   });
 
-  // BEHAVIOR-QUESTION: spec is silent on unknown config keys; the shipped schema allows them, so a typo key is ignored.
-  it.fails('CLI-173 unknown top-level key is reported', async () => {
-    await badConfig({ platfrom: 'camunda8' }, ['platfrom']);
+  // Decided: an unknown key is a stderr warning naming the key path, not an error.
+  it('CLI-173 unknown keys are reported as warnings', async () => {
+    const dir = T();
+    await writeW1(dir);
+    writeCfg(dir, {
+      $schema: './schema/config.schema.json',
+      platfrom: 'camunda8',
+      header: { scanrows: 3 },
+      types: { number: { allowExpression: false } },
+    });
+    const r = cli(dir, ['one_DMN.xlsx', '--config', CFG]);
+    expect(r.code, dump(r)).toBe(0);
+    await reparseAll(dir);
+    const warnings = lines(r.stderr).filter((l) => /unknown config key/.test(l));
+    expect(warnings, r.stderr).toHaveLength(3);
+    expect(r.stderr).toContain('"platfrom"');
+    expect(r.stderr).toContain('"header.scanrows"');
+    expect(r.stderr).toContain('"types.number.allowExpression"');
+    expect(r.stderr).not.toContain('$schema');
+    expect(r.stdout).not.toMatch(/unknown config key/);
+    // The typo falls back to the default: still a Camunda 7 file.
+    expect(readText(join(dir, 'RATES.dmn'))).toContain('camunda:historyTimeToLive');
   });
 
   it('CLI-174 config validation errors are reported all at once', async () => {
@@ -2040,6 +2076,15 @@ describe('K. Marker and sheet customization via config', OPTS, () => {
     expect(table.rule.map((r) => r.id)).toEqual(['r5', 'r6']);
   });
 
+  it('CLI-203a identity.collisionSuffix de-duplicates rule ids from a fixed idTemplate', async () => {
+    const dir = T();
+    await writeW1(dir);
+    writeCfg(dir, { rules: { idTemplate: 'rule' }, identity: { collisionSuffix: '-' } });
+    await expectOk(cli(dir, ['one_DMN.xlsx', '--config', CFG]), dir);
+    const { table } = await loadDmn(join(dir, 'RATES.dmn'));
+    expect(table.rule.map((r) => r.id)).toEqual(['rule', 'rule-2']);
+  });
+
   it('CLI-204 identity.idCase: "preserve"', async () => {
     const dir = T();
     await writeW1(dir, 'one_DMN.xlsx', setCells(w1(), { A2: 'Rates Table' }));
@@ -2210,8 +2255,8 @@ describe('L. init', OPTS, () => {
     expect(dmnFiles(dir)).toHaveLength(1);
   });
 
-  // BEHAVIOR-QUESTION: spec is silent on init --sheet names the converter will not select; init does not warn.
-  it.fails('CLI-221 --sheet without DMN in the name warns', async () => {
+  // Decided: init writes the file but warns that the converter will not select the sheet.
+  it('CLI-221 --sheet without DMN in the name warns', async () => {
     const dir = T();
     const r = cli(dir, ['init', '--sheet', 'Pricing', '-o', 'p.xlsx']);
     expect(r.code, dump(r)).toBe(0);
@@ -2321,13 +2366,16 @@ describe('L. init', OPTS, () => {
     expect(readText(join(dir, 'k', k[0]))).toBe(readText(join(dir, 'd', k[0])));
   });
 
-  // BEHAVIOR-QUESTION: spec is silent on init over an existing file; init overwrites it without --force.
-  it.fails('CLI-229 init over an existing file', async () => {
+  // Decided: init refuses to overwrite an existing file unless --force is given.
+  it('CLI-229 init over an existing file', async () => {
     const dir = T();
     writeFileSync(join(dir, 'decision_DMN.xlsx'), 'filled-in template');
     const r = cli(dir, ['init']);
-    expectFail(r, 'decision_DMN.xlsx', /--force|overwrite/i);
+    expectFail(r, 'decision_DMN.xlsx', '--force');
     expect(readText(join(dir, 'decision_DMN.xlsx'))).toBe('filled-in template');
+    await expectOk(cli(dir, ['init', '--force']), dir);
+    await expectOk(cli(dir, ['decision_DMN.xlsx']), dir);
+    expect(dmnFiles(dir)).toHaveLength(1);
   });
 
   it('CLI-230 init output re-imports the example rules exactly', async () => {
@@ -2460,93 +2508,70 @@ describe('M. config', OPTS, () => {
     }
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin: documented behavior is the full defaults plus a stderr note, not a wizard.
-  it.fails('CLI-251 wizard via stdin: choose Camunda 8', () => {
-    const dir = T();
-    const r = cli(dir, ['config'], {
-      input: wizardInput({ essentials: { platform: 'camunda8' } }),
-    });
-    expect(r.code, dump(r)).toBe(0);
-    expect(readJson(join(dir, CWD_CFG))).toEqual({ platform: 'camunda8' });
+  // Decided: piped (non-TTY) stdin keeps writing the defaults plus a stderr note (CLI-250);
+  // CLI-251..259 drive the wizard itself through its prompt hook (runWizard).
+  it('CLI-251 wizard: choose Camunda 8', async () => {
+    const { cfg } = await runWizard(wizardInput({ essentials: { platform: 'camunda8' } }));
+    expect(cfg).toEqual({ platform: 'camunda8' });
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-252 wizard via stdin: enabling allowed values writes the three-key layout', () => {
-    const dir = T();
-    const input = wizardInput({ essentials: { allowedValues: 'y' } });
-    const r = cli(dir, ['config'], { input });
-    expect(r.code, dump(r)).toBe(0);
-    expect(readJson(join(dir, CWD_CFG))).toEqual({
+  it('CLI-252 wizard: enabling allowed values writes the three-key layout', async () => {
+    const { cfg } = await runWizard(wizardInput({ essentials: { allowedValues: 'y' } }));
+    expect(cfg).toEqual({
       header: { allowedValuesOffset: 3, labelOffset: 4 },
       rules: { startOffset: 5 },
     });
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-253 wizard via stdin with --full', () => {
-    const dir = T();
+  it('CLI-253 wizard with --full', async () => {
     const input = wizardInput({ essentials: { platform: 'camunda8' } });
-    const r = cli(dir, ['config', '--full'], { input });
-    expect(r.code, dump(r)).toBe(0);
-    expect(readJson(join(dir, CWD_CFG))).toEqual({ ...fullDefaults(), platform: 'camunda8' });
+    const { cfg } = await runWizard(input, { full: true });
+    expect(cfg).toEqual({ ...fullDefaults(), platform: 'camunda8' });
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-254 wizard re-asks on an invalid answer', () => {
-    const dir = T();
+  it('CLI-254 wizard re-asks on an invalid answer', async () => {
     const input = wizardInput({
       essentials: { 'sheet.caseInsensitive': 'n' },
       before: { 'sheet.caseInsensitive': ['maybe'] },
     });
-    const r = cli(dir, ['config'], { input });
-    expect(r.code, dump(r)).toBe(0);
-    expect(r.stdout.match(/please answer y or n/gi) ?? [], r.stdout).toHaveLength(1);
-    expect(readJson(join(dir, CWD_CFG))).toEqual({ sheet: { caseInsensitive: false } });
+    const { cfg, stdout } = await runWizard(input);
+    expect(stdout.match(/please answer y or n/gi) ?? [], stdout).toHaveLength(1);
+    expect(cfg).toEqual({ sheet: { caseInsensitive: false } });
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails(
-    'CLI-255 wizard: Camunda 8 hides PRIORITY / OUTPUT ORDER from the hit-policy choices',
-    () => {
-      const dir = T();
-      const r = cli(dir, ['config'], {
-        input: wizardInput({ essentials: { platform: 'camunda8' } }),
-      });
-      expect(r.code, dump(r)).toBe(0);
-      const out = lines(r.stdout);
-      const at = out.findIndex((l) => l.includes('Fallback hit policy'));
-      expect(at, r.stdout).toBeGreaterThanOrEqual(0);
-      const options = out
-        .slice(0, at)
-        .reverse()
-        .find((l) => /options/i.test(l));
-      expect(options, r.stdout).toBeDefined();
-      expect(options).not.toContain('PRIORITY');
-      expect(options).not.toContain('OUTPUT ORDER');
-    },
-  );
+  it('CLI-255 wizard: Camunda 8 hides PRIORITY / OUTPUT ORDER from the hit-policy choices', async () => {
+    const { stdout } = await runWizard(wizardInput({ essentials: { platform: 'camunda8' } }));
+    const out = lines(stdout);
+    const at = out.findIndex((l) => l.includes('Fallback hit policy'));
+    expect(at, stdout).toBeGreaterThanOrEqual(0);
+    const options = out
+      .slice(0, at)
+      .reverse()
+      .find((l) => /options/i.test(l));
+    expect(options, stdout).toBeDefined();
+    expect(options).toContain('COLLECT');
+    expect(options).not.toContain('PRIORITY');
+    expect(options).not.toContain('OUTPUT ORDER');
+  });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-256 wizard: advanced section is asked only on request', () => {
-    const dir = T();
-    const a = cli(dir, ['config', '-o', 'a.json'], { input: wizardInput() });
-    expect(a.code, dump(a)).toBe(0);
+  it('CLI-256 wizard: advanced section is asked only on request', async () => {
+    const a = await runWizard(wizardInput());
     expect(a.stdout).not.toContain('historyTimeToLive');
-    const b = cli(dir, ['config', '-o', 'b.json'], {
-      input: wizardInput({ advanced: true, adv: { 'camunda.historyTimeToLive': 'P30D' } }),
-    });
-    expect(b.code, dump(b)).toBe(0);
-    expect(readJson(join(dir, 'b.json'))).toEqual({ camunda: { historyTimeToLive: 'P30D' } });
+    expect(a.cfg).toEqual({});
+    const b = await runWizard(
+      wizardInput({ advanced: true, adv: { 'camunda.historyTimeToLive': 'P30D' } }),
+    );
+    expect(b.stdout).toContain('historyTimeToLive');
+    expect(b.cfg).toEqual({ camunda: { historyTimeToLive: 'P30D' } });
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-257 wizard: null answer for a nullable key', async () => {
+  it('CLI-257 wizard: null answer for a nullable key', async () => {
     const dir = T();
-    const r = cli(dir, ['config'], {
-      input: wizardInput({ advanced: true, adv: { 'camunda.historyTimeToLive': 'null' } }),
-    });
-    expect(r.code, dump(r)).toBe(0);
-    expect(readJson(join(dir, CWD_CFG))).toEqual({ camunda: { historyTimeToLive: null } });
+    const { cfg } = await runWizard(
+      wizardInput({ advanced: true, adv: { 'camunda.historyTimeToLive': 'null' } }),
+    );
+    expect(cfg).toEqual({ camunda: { historyTimeToLive: null } });
+    saveWizard(dir, cfg);
     await writeW1(dir);
     await expectOk(cli(dir, ['one_DMN.xlsx']), dir);
     expect(readText(join(dir, 'RATES.dmn'))).not.toContain('historyTimeToLive');
@@ -2568,13 +2593,10 @@ describe('M. config', OPTS, () => {
     expect(full).toEqual(deepMerge(fullDefaults(), { markers: { id: 'KEY' } }));
   });
 
-  // BEHAVIOR-QUESTION: wizard on piped (non-TTY) stdin is not run (see CLI-251).
-  it.fails('CLI-259 wizard output is a loadable config', async () => {
+  it('CLI-259 wizard output is a loadable config', async () => {
     const dir = T();
-    const r = cli(dir, ['config'], {
-      input: wizardInput({ essentials: { platform: 'camunda8' } }),
-    });
-    expect(r.code, dump(r)).toBe(0);
+    const { cfg } = await runWizard(wizardInput({ essentials: { platform: 'camunda8' } }));
+    saveWizard(dir, cfg);
     await writeW1(dir);
     await expectOk(cli(dir, ['one_DMN.xlsx']), dir);
     expect(tag(readText(join(dir, 'RATES.dmn')), 'definitions')['modeler:executionPlatform']).toBe(

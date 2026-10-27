@@ -205,8 +205,7 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 - **Given** `dmn1` from W-C7; `T/new/deeper/` does not exist.
 - **When** import with `-o new/deeper/x.xlsx`.
 - **Then** exit `0`; parent directories are created; `T/new/deeper/x.xlsx` exists.
-- **Spec:** spec silent. Reasonable expectation: behave like convert, whose output
-  directory is created on demand (§7 "written into `--out-dir`"; convert creates it).
+- **Spec:** §7.3 (decided: create missing parent directories, like convert).
 
 ### IMPORT-005 — `-o` overwrites an existing workbook
 
@@ -469,10 +468,11 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 
 - **Given** IMPORT-036.
 - **Then** stdout contains a hint that the template uses the allowed-values layout and how
-  to enable it on re-convert (mentions `allowedValuesOffset`).
+  to enable it on re-convert (mentions `allowedValuesOffset`, `labelOffset` and
+  `startOffset`); importing with the 5-row config prints no hint.
 - **Spec:** spec silent. Without it, re-converting with the default config misreads the
-  allowed-values row as the label row and the label row as a rule (§3.1 offsets), so a hint
-  is the reasonable expectation (same rationale as the §6.6 platform hint).
+  allowed-values row as the label row and the label row as a rule (§3.1 offsets). Decided:
+  print the hint (§7.3).
 
 ### IMPORT-038 — no auto-upgrade when the DMN has no allowed values
 
@@ -1024,7 +1024,7 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 - **Given** `T/dir.dmn/` is a directory.
 - **When** `excel2dmn import dir.dmn`.
 - **Then** exit `1`; clear message naming the path; nothing written.
-- **Spec:** spec silent.
+- **Spec:** §7 "Output channels" (decided: read errors name the path).
 
 ### IMPORT-106 — malformed XML
 
@@ -1051,11 +1051,12 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 ### IMPORT-109 — DMN 1.1 / 1.2 namespace
 
 - **Given** D-MODELER-C7 with the MODEL namespace replaced by
-  `http://www.omg.org/spec/DMN/20151101/dmn.xsd` (DMN 1.1).
+  `http://www.omg.org/spec/DMN/20151101/dmn.xsd` (DMN 1.1), and again by
+  `http://www.omg.org/spec/DMN/20180521/MODEL/` (DMN 1.2).
 - **When** import.
-- **Then** exit `1`; the message explains the file is not DMN 1.3 (or that no decision table
-  was found); nothing written.
-- **Spec:** §1 (the tool targets DMN 1.3); exact message spec silent.
+- **Then** exit `1`; the message names the file, the detected version (`DMN 1.1` / `DMN 1.2`)
+  and says `not DMN 1.3`; nothing written.
+- **Spec:** §7.3 (decided: detect and reject other DMN versions).
 
 ### IMPORT-110 — only a literal-expression decision
 

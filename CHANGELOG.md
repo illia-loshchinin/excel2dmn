@@ -21,12 +21,22 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **Breaking:** requires Node.js 20.12 or newer (Node 18 is end-of-life).
+- **Breaking:** two sheets with the same decision id (compared after sanitising, ignoring case) are now an error naming the id and both sheets, and neither is written. They used to be renamed `<ID>_2`, `<ID>_3`, … `identity.collisionSuffix` now only de-duplicates rule ids inside one decision (e.g. an `idTemplate` without `<n>`/`<row>`).
+- **Breaking:** `excel2dmn init` refuses to overwrite an existing file; pass the new `--force` flag to replace it.
+- Unknown config keys (e.g. a typo such as `platfrom`) print a `warning:` on stderr naming the key path. They are still ignored, not an error.
+- `excel2dmn init --sheet <name>` warns when the converter would not select that sheet name (e.g. no `DMN` in it).
+- `excel2dmn import` prints which config keys to set (`header.allowedValuesOffset`, `header.labelOffset`, `rules.startOffset`) when it switches to the 5-row allowed-values layout.
+- The `--sheet` "no sheet" error explains that `--sheet` only narrows the sheets selected by `sheet.match`/`sheet.value`.
 - Standardised the wildcard/untyped column keyword to canonical **`Any`** (aligned with Camunda 8's documented type name). `any`/`none`/`object` are still accepted case-insensitively on input; reverse `import` now writes `Any` into the Excel type cell. Emitted DMN is unchanged (untyped columns still omit `typeRef`, matching the Camunda Modeler).
 - `commander` 12 → 15, `dmn-moddle` 12.0 → 12.2, `feelin` 7 → 8 (FEEL parsing is unchanged; `luxon` is no longer a dependency).
 - Patched vulnerable transitive dependencies (`fast-uri`, `brace-expansion`).
 
 ### Fixed
 
+- `excel2dmn import -o` into a directory that does not exist failed; missing parent directories are now created, as for convert.
+- Read errors for the input of convert and import name the path (`Cannot read <path>: it is a directory, not a file` instead of a bare `EISDIR` or "not a valid .xlsx workbook").
+- `excel2dmn import` of a DMN 1.1/1.2 (or 1.4/1.5) file is rejected with a message naming the DMN version, instead of a confusing "no decision table" error.
+- An `excel2dmn import` write error names the output path.
 - `excel2dmn --version` reported `0.1.0` regardless of the installed version.
 - `-o/--out` was ignored: the single-sheet result is now written to the named file, and the multi-sheet error is raised before any file is written.
 - One invalid DMN sheet no longer blocks its valid siblings: each sheet is written independently and every failing sheet is reported (exit code stays non-zero).

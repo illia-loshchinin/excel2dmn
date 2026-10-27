@@ -8,6 +8,7 @@ import { analyzeModel } from './analyze.js';
 import { readFileSync as _read } from 'node:fs';
 import { dmnToModels } from './dmn-to-json.js';
 import { modelsToWorkbook } from './json-to-excel.js';
+import { readError } from './errors.js';
 
 export { parseWorkbook } from './excel-to-json.js';
 export { buildDmn, reparse } from './json-to-dmn.js';
@@ -79,6 +80,27 @@ export async function convert(inputPath, options = {}) {
   return { results, problems };
 }
 
+// DMN MODEL namespaces by version; only 1.3 (20191111) is supported (spec §6).
+const DMN_VERSIONS = {
+  'http://www.omg.org/spec/DMN/20151101/dmn.xsd': '1.1',
+  'http://www.omg.org/spec/DMN/20180521/MODEL/': '1.2',
+  'https://www.omg.org/spec/DMN/20211108/MODEL/': '1.4',
+  'https://www.omg.org/spec/DMN/20230324/MODEL/': '1.5',
+};
+
+/** Reject a DMN whose root <definitions> uses another DMN version's namespace. */
+function assertDmn13(xml) {
+  const root = /<(?:([\w.-]+):)?definitions\b[^>]*>/.exec(xml);
+  if (!root) return; // not DMN at all: dmnToModels reports that
+  const attr = root[1] ? `xmlns:${root[1]}` : 'xmlns';
+  const ns = new RegExp(`\\s${attr}\\s*=\\s*(["'])(.*?)\\1`).exec(root[0])?.[2];
+  const version = DMN_VERSIONS[ns];
+  if (version)
+    throw new Error(
+      `this is a DMN ${version} file (namespace ${ns}), not DMN 1.3 — open and save it in a current Camunda Modeler to upgrade it`,
+    );
+}
+
 function stripInternal(model) {
   const { __sheet, __warnings, __platform, __camunda8, ...rest } = model;
   void __sheet;
@@ -90,14 +112,24 @@ function stripInternal(model) {
 
 /**
  * Reverse: read a .dmn file and write the equivalent .xlsx template.
- * @returns {Promise<{path:string, models:Array}>}
+ * `layoutUpgraded` is true when the template uses the 5-row allowed-values header
+ * although the config has none (it must be converted back with that layout).
+ * @returns {Promise<{path:string, models:Array, config:object, platform:string, layoutUpgraded:boolean}>}
  */
 export async function importDmn(dmnPath, options = {}) {
   const cfg =
     options.config || loadConfig({ configPath: options.configPath, overrides: options.overrides });
-  const xml = options.xml != null ? options.xml : _read(dmnPath, 'utf8');
+  let xml = options.xml;
+  if (xml == null) {
+    try {
+      xml = _read(dmnPath, 'utf8');
+    } catch (err) {
+      throw readError(dmnPath, err) || err;
+    }
+  }
   let models;
   try {
+    assertDmn13(xml);
     models = await dmnToModels(xml, cfg);
   } catch (err) {
     // Name the source file: moddle's parse errors ("unparsable content …") do not.
@@ -109,13 +141,13 @@ export async function importDmn(dmnPath, options = {}) {
   const hasAllowed = models.some((mo) =>
     [...mo.decisions[0].inputs, ...mo.decisions[0].outputs].some((c) => c.allowedValues),
   );
-  const writeCfg =
-    hasAllowed && cfg.header.allowedValuesOffset == null
-      ? deepMerge(cfg, {
-          header: { allowedValuesOffset: 3, labelOffset: 4 },
-          rules: { startOffset: 5 },
-        })
-      : cfg;
+  const layoutUpgraded = hasAllowed && cfg.header.allowedValuesOffset == null;
+  const writeCfg = layoutUpgraded
+    ? deepMerge(cfg, {
+        header: { allowedValuesOffset: 3, labelOffset: 4 },
+        rules: { startOffset: 5 },
+      })
+    : cfg;
   // A source without a .dmn extension gets ".xlsx" appended, so it is never overwritten.
   const out =
     options.out ||
@@ -124,11 +156,19 @@ export async function importDmn(dmnPath, options = {}) {
         ? dmnPath.replace(/\.dmn$/i, '.xlsx')
         : `${dmnPath}.xlsx`
       : 'decision_DMN.xlsx');
-  if (options.write !== false) await modelsToWorkbook(models, writeCfg, out);
+  if (options.write !== false) {
+    try {
+      // Like convert, create missing parent directories of the output (spec §7).
+      mkdirSync(dirname(out), { recursive: true });
+      await modelsToWorkbook(models, writeCfg, out);
+    } catch (err) {
+      throw err.code ? new Error(`Cannot write ${out}: ${err.message}`) : err;
+    }
+  }
   // Platform detected from the source DMN's modeler metadata (§6.6). Surfaced so callers
   // (and the CLI) can re-convert the produced template with the matching --platform.
   const platform = models.some((m) => m.__platform === 'camunda8') ? 'camunda8' : 'camunda7';
-  return { path: out, models, config: writeCfg, platform };
+  return { path: out, models, config: writeCfg, platform, layoutUpgraded };
 }
 
 export { basename, extname }; // re-export path helpers used by the CLI

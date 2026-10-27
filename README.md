@@ -43,7 +43,7 @@ excel2dmn rules.xlsx --platform camunda8 --out-dir out
 excel2dmn rules.xlsx --validate-only
 excel2dmn rules.xlsx --analyze
 
-# Generate a starter template
+# Generate a starter template (refuses to overwrite an existing file without --force)
 excel2dmn init --name "Shipping Rate Decision" -o shipping_DMN.xlsx
 
 # Generate a config file interactively (step-by-step, with defaults)
@@ -53,6 +53,19 @@ excel2dmn config --defaults        # non-interactive: write the full default con
 # Reverse: turn an existing DMN into an editable Excel template
 excel2dmn import existing.dmn -o existing.xlsx
 ```
+
+`--sheet <name...>` narrows the sheets that would be converted anyway (names containing
+`DMN` by default) to the exact names given; it cannot select a sheet outside that set.
+Two sheets with the same decision id (compared after sanitising, ignoring case) are an
+error, since their files would overwrite each other.
+
+**Output:** success lines and hints go to stdout; errors and warnings go to **stderr**
+(conversion warnings as `⚠ <sheet>: [<cell>] <message>`, others as `warning: …`).
+Warnings do not change the exit code.
+
+`import` accepts DMN 1.3 only (open older DMN in a current Camunda Modeler to upgrade it)
+and creates missing directories for `-o`. When the DMN has allowed values it writes the
+5-row allowed-values layout and prints the config needed to convert the template back.
 
 > **Camunda 8 round-trip:** the Excel template does not carry the platform, so when
 > `import` detects a Camunda 8 source it prints a hint to re-convert with
@@ -101,7 +114,7 @@ FEEL list (`"EU","US"`) per column → dropdowns in the Modeler; it is required 
 
 Rules follow beneath the header. A row is a rule if any input/output cell is
 filled; reading stops at the first fully-empty row. Rule ids are generated as
-`rule_<excelRow>`. An `Annotations` cell becomes that rule's `<description>`.
+`rule_<n>` (1-based; `rules.idTemplate` can use `<row>` for the Excel row). An `Annotations` cell becomes that rule's `<description>`.
 
 See [`SOLUTION_SPEC.md`](./SOLUTION_SPEC.md) for the full contract, and
 `definitions/shipping_rates_DMN.xlsx` for a worked example.
@@ -125,6 +138,8 @@ By default the wizard writes only the keys you changed (a minimal file); pass
 `--full` to write every key. [`excel2dmn.config.example.json`](./excel2dmn.config.example.json)
 is a checked-in copy of the complete default config you can copy and edit by
 hand. Every field is documented in [`SOLUTION_SPEC.md` §7.1](./SOLUTION_SPEC.md).
+Unknown keys (typos) are ignored with a `warning:` on stderr naming the key; wrong types
+or values for known keys are errors.
 
 ## Development
 

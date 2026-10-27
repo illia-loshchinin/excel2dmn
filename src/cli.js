@@ -9,6 +9,7 @@ import { writeTemplate } from './init-template.js';
 import { buildConfig, serializeConfig } from './init-config.js';
 import { formatAnalysis } from './analyze.js';
 import { ConversionError } from './errors.js';
+import { sheetMatches } from './excel-to-json.js';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
@@ -82,8 +83,15 @@ export function shellQuote(s) {
 async function importAction(input, opts) {
   const cfg = loadConfig({ configPath: opts.config });
   const out = opts.out ? resolve(opts.out) : undefined;
-  const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
+  const { path, models, platform, layoutUpgraded } = await importDmn(resolve(input), {
+    config: cfg,
+    out,
+  });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
+  if (layoutUpgraded)
+    console.log(
+      '  ℹ the DMN has allowed values, so the template uses the 5-row header; to convert it back, set "header": { "allowedValuesOffset": 3, "labelOffset": 4 } and "rules": { "startOffset": 5 } in your config',
+    );
   if (platform === 'camunda8') {
     console.log(
       `  ℹ detected Camunda 8 — re-convert with: excel2dmn ${shellQuote(path)} --platform camunda8`,
@@ -99,7 +107,14 @@ async function importAction(input, opts) {
 
 async function initAction(opts) {
   const cfg = loadConfig({ configPath: opts.config });
-  const out = await writeTemplate(resolve(opts.out), cfg, {
+  const target = resolve(opts.out);
+  // The existing file is likely a filled-in template; never replace it silently.
+  if (existsSync(target) && !opts.force) fail(`${target} exists; use --force to overwrite`);
+  if (opts.sheet && !sheetMatches(opts.sheet, cfg))
+    console.error(
+      `warning: sheet "${opts.sheet}" does not match the sheet config (${cfg.sheet.match} "${cfg.sheet.value}"), so converting this workbook will not select it${cfg.sheet.match === 'contains' ? `; include "${cfg.sheet.value}" in the sheet name` : ''}`,
+    );
+  const out = await writeTemplate(target, cfg, {
     name: opts.name,
     sheetName: opts.sheet,
     minimal: opts.minimal,
@@ -189,6 +204,7 @@ export function buildProgram() {
     .option('--sheet <name>', 'sheet name')
     .option('--config <file>', 'config JSON file')
     .option('--minimal', 'skip example rules / annotation column')
+    .option('--force', 'overwrite an existing file')
     .action(initAction);
 
   program
