@@ -544,11 +544,12 @@ excel2dmn <input.xlsx> [options]     # convert (default command)
   -j, --json                also write one <decisionId>.model.json per sheet
       --config <file>       config JSON (default: ./excel2dmn.config.json if present)
       --sheet <name...>     restrict to these sheet name(s); default = all "DMN" sheets
+      --platform <name>     camunda7 (default) | camunda8
       --hit-policy <p>      fallback hit policy (default UNIQUE)
       --namespace <uri>     definitions target namespace
       --analyze             run static analysis (overlap/gaps/duplicates, §16)
       --validate-only       parse + schema-validate all sheets, do not emit DMN
-      --pretty              format XML (default true)
+      --no-pretty           disable XML pretty-printing (output.format: false)
 
 excel2dmn init [options]             # write a starter template workbook (§7.2)
 ```
@@ -694,7 +695,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
     "enabled": false, // true → analyze on every run
     "checks": ["overlap", "duplicate", "shadowed", "gaps"],
     "failOn": "none", // "none" | "error" | "any" → exit 1 on findings of that severity ("any" = warnings too)
-    "format": "text", // "text" | "json"
+    "format": "text", // "text" | "json" | "junit"
     "gapsMaxCombos": 100000, // skip the gaps check beyond this many input combinations
   },
 }
@@ -706,7 +707,7 @@ Rules of use:
 - `sheet.match: "regex"` restores pattern-based selection if a team prefers it (e.g. `"value": "_?\\s?DMN$"`).
 - `header.*Offset` and `header.scanRows` cover templates whose header block is laid out differently.
 - `rules.startOffset` / `detectBy` / `stopOnEmptyRow` control where rules begin and end; `idTemplate` sets the generated rule id (`rule_<n>` sequential by default; `<row>` for the Excel row).
-- `identity` fully controls decision id/name derivation (§6.4); `output.namespaceStyle` toggles the §6.3 post-process.
+- `identity` controls decision-id sanitising and case (§6.4) and rule-id de-duplication; the decision name comes from the `name` column; `output.namespaceStyle` toggles the §6.3 post-process.
 - Every field has a default (the values shown are the defaults), so an **empty or absent config file works out of the box**.
 
 CLI flags map onto config paths: `--hit-policy` → `hitPolicy.default`, `--namespace` → `output.namespace`, `--platform` → `platform`, `--out-dir` → `output.outDir`. `--sheet` has no config equivalent: it narrows the sheets selected by `sheet.*` to the exact names given (§3). `--config <file>` points at an alternate JSON.

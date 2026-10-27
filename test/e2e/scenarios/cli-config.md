@@ -322,6 +322,34 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 - **Then** succeeds; `T/Rates DMN.dmn` exists; no `RATES.dmn`.
 - **Source** spec §7.1 `output.fileNameTemplate` ("also `<sheetName>.dmn`").
 
+### CLI-043a: a sheet name with replacement patterns is used literally
+
+- **Given** a workbook with sheet `A$&B DMN`, config `{ "output": { "fileNameTemplate": "<sheetName>.dmn" } }`.
+- **When** convert.
+- **Then** succeeds; exactly `A$&B DMN.dmn` is written.
+- **Source** **spec silent**; regression for `$&` being interpreted as a replacement pattern.
+
+### CLI-043b: an empty `output.fileNameTemplate` is a config error
+
+- **Given** W1, config `{ "output": { "fileNameTemplate": "" } }`.
+- **When** convert.
+- **Then** exit `1`; stderr mentions `output.fileNameTemplate`; nothing written.
+- **Source** spec §7.1 `output.fileNameTemplate`.
+
+### CLI-043c: a `"."` `output.fileNameTemplate` is a per-sheet error
+
+- **Given** W1, config `{ "output": { "fileNameTemplate": "." } }`.
+- **When** convert.
+- **Then** exit `1`; stderr names the sheet `Rates DMN`; nothing written.
+- **Source** **spec silent**; the template must name a file inside the output directory.
+
+### CLI-043d: a thrown CLI error carries the `error: ` prefix
+
+- **Given** W2 (two DMN sheets).
+- **When** `excel2dmn book.xlsx --out x.dmn`.
+- **Then** exit `1`; stderr has a line starting `error: ` and mentions `--out`.
+- **Source** spec §7 output channels.
+
 ### CLI-044: `fileNameTemplate` with a prefix and both placeholders
 
 - **Given** W1, config `{ "output": { "fileNameTemplate": "v1-<decisionId>.dmn" } }`.
@@ -576,6 +604,20 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 - **When** convert.
 - **Then** exit `1`; stderr names `Evil DMN` and says the output would be outside the output directory; `sub/GOOD.dmn` is written and nothing is written outside `sub/`.
 - **Source** **spec silent**; a decision id must not steer the output outside the output directory.
+
+### CLI-088c: `--validate-only` reports output-path collisions too
+
+- **Given** W2, config `{ "output": { "fileNameTemplate": "fixed.dmn" } }`.
+- **When** convert with `--validate-only`.
+- **Then** exit `1`; stderr names `fixed.dmn` and both sheets; no files written.
+- **Source** spec §7 (`--validate-only` must predict what a real run rejects).
+
+### CLI-088d: an output path equal to the input workbook is refused
+
+- **Given** W1 at `T/x.xlsx`.
+- **When** `excel2dmn x.xlsx -o x.xlsx`.
+- **Then** exit `1`; stderr says the output path is the input workbook; `x.xlsx` is byte-identical.
+- **Source** **spec silent**; the input must never be overwritten.
 
 ### CLI-089: sheets with the same name prefix are independent
 
@@ -1538,6 +1580,13 @@ and the rule ids, not on full sentences.
 - **Then** exit `0`; `w.json` parses to `{ "platform": "camunda8" }`.
 - **Source** `config` wizard behaviour; regression for lines pasted together being dropped. Needs a pty; skipped when none is available.
 
+### CLI-262: the overwrite answer and the wizard answers share one stdin
+
+- **Given** `T/w.json` exists; `config -o w.json` run under a pseudo-terminal.
+- **When** all input is supplied at once: `y`, then the wizard answers (`camunda8` for the platform, Enter elsewhere).
+- **Then** exit `0`; `w.json` parses to `{ "platform": "camunda8" }`.
+- **Source** `config` behaviour; regression for the overwrite prompt consuming the buffered wizard answers. Needs a pty; skipped when none is available.
+
 ---
 
 ## N. `import` basics
@@ -1599,6 +1648,13 @@ and the rule ids, not on full sentences.
 - **Given** empty `T`. **When** `excel2dmn import nope.dmn`.
 - **Then** fails naming `nope.dmn`; no `.xlsx` written.
 - **Source** **spec silent** on wording.
+
+### CLI-279a: import refuses to overwrite its input DMN
+
+- **Given** `T/RATES.dmn` produced from W1.
+- **When** `excel2dmn import RATES.dmn -o RATES.dmn`.
+- **Then** exit `1`; stderr says the output would overwrite the input DMN; `RATES.dmn` is byte-identical.
+- **Source** **spec silent**; the input must never be overwritten.
 
 ### CLI-279: import of malformed XML
 

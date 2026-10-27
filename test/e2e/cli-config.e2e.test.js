@@ -645,6 +645,40 @@ describe('C. Output location: --out-dir, --out, fileNameTemplate', OPTS, () => {
     expect(existsSync(join(dir, 'RATES.dmn'))).toBe(false);
   });
 
+  it('CLI-043a a sheet name with replacement patterns is used literally in fileNameTemplate', async () => {
+    const dir = T();
+    await book(dir, 'one_DMN.xlsx', { 'A$&B DMN': w1() });
+    writeCfg(dir, { output: { fileNameTemplate: '<sheetName>.dmn' } });
+    await expectOk(cli(dir, ['one_DMN.xlsx', '--config', CFG]), dir);
+    expect(dmnFiles(dir)).toEqual(['A$&B DMN.dmn']);
+  });
+
+  it('CLI-043b an empty output.fileNameTemplate is a config error', async () => {
+    const dir = T();
+    await writeW1(dir);
+    writeCfg(dir, { output: { fileNameTemplate: '' } });
+    const r = cli(dir, ['one_DMN.xlsx', '--config', CFG]);
+    expectFail(r, 'output.fileNameTemplate');
+    expect(dmnFiles(dir)).toEqual([]);
+  });
+
+  it('CLI-043c a "." output.fileNameTemplate is a per-sheet error', async () => {
+    const dir = T();
+    await writeW1(dir);
+    writeCfg(dir, { output: { fileNameTemplate: '.' } });
+    const r = cli(dir, ['one_DMN.xlsx', '--config', CFG]);
+    expectFail(r, 'Rates DMN');
+    expect(dmnFiles(dir)).toEqual([]);
+  });
+
+  it('CLI-043d a thrown CLI error carries the "error: " prefix', async () => {
+    const dir = T();
+    await book(dir, 'book.xlsx', w2());
+    const r = cli(dir, ['book.xlsx', '--out', 'x.dmn']);
+    expectFail(r, '--out');
+    expect(r.stderr).toMatch(/^error: /m);
+  });
+
   it('CLI-044 fileNameTemplate with a prefix and both placeholders', async () => {
     const dir = T();
     await writeW1(dir);
@@ -1091,6 +1125,24 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     const r = cli(dir, ['sub/book.xlsx', '--config', CFG]);
     expectFail(r, 'Evil DMN', 'outside the output directory');
     expect(dmnFiles(dir)).toEqual(['sub/GOOD.dmn']);
+  });
+
+  it('CLI-088c --validate-only reports output-path collisions too', async () => {
+    const dir = T();
+    await book(dir, 'book.xlsx', w2());
+    writeCfg(dir, { output: { fileNameTemplate: 'fixed.dmn' } });
+    const r = cli(dir, ['book.xlsx', '--config', CFG, '--validate-only']);
+    expectFail(r, 'fixed.dmn', 'Shipping DMN', 'Returns_ DMN');
+    expect(dmnFiles(dir)).toEqual([]);
+  });
+
+  it('CLI-088d an output path equal to the input workbook is refused', async () => {
+    const dir = T();
+    const path = await writeW1(dir, 'x.xlsx');
+    const before = readFileSync(path);
+    const r = cli(dir, ['x.xlsx', '-o', 'x.xlsx']);
+    expectFail(r, 'input workbook');
+    expect(readFileSync(path).equals(before)).toBe(true);
   });
 
   it('CLI-090 a DMN sheet with no marker row fails, others still convert', async () => {
@@ -2700,6 +2752,23 @@ describe('M. config', OPTS, () => {
     expect(r.status, r.stdout).toBe(0);
     expect(readJson(join(dir, 'w.json'))).toEqual({ platform: 'camunda8' });
   });
+
+  it.skipIf(!HAS_PTY)('CLI-262 the overwrite answer and the wizard answers share one stdin', () => {
+    const dir = T();
+    writeFileSync(join(dir, 'w.json'), '{"keep":true}');
+    const r = spawnSync(
+      'script',
+      ['-qec', `'${process.execPath}' '${CLI}' config -o w.json`, '/dev/null'],
+      {
+        cwd: dir,
+        input: `y\n${wizardInput({ essentials: { platform: 'camunda8' } })}`,
+        encoding: 'utf8',
+        timeout: 30_000,
+      },
+    );
+    expect(r.status, r.stdout).toBe(0);
+    expect(readJson(join(dir, 'w.json'))).toEqual({ platform: 'camunda8' });
+  });
 });
 
 describe('N. import basics', OPTS, () => {
@@ -2791,6 +2860,15 @@ describe('N. import basics', OPTS, () => {
     const r = cli(dir, ['import', 'nope.dmn']);
     expectFail(r, 'nope.dmn');
     expect(listFiles(dir)).toEqual([]);
+  });
+
+  it('CLI-279a import refuses to overwrite its input DMN', async () => {
+    const dir = T();
+    const dmn = await ratesDmn(dir);
+    const before = readFileSync(dmn);
+    const r = cli(dir, ['import', 'RATES.dmn', '-o', 'RATES.dmn']);
+    expectFail(r, 'overwrite the input');
+    expect(readFileSync(dmn).equals(before)).toBe(true);
   });
 
   it('CLI-279 import of malformed XML', () => {

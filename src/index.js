@@ -56,7 +56,7 @@ export async function convert(inputPath, options = {}) {
   // Two sheets resolving to one output file would overwrite each other: fail them all.
   const paths = new Map();
   const colliding = new Set();
-  if (!options.out && options.write !== false && !options.validateOnly) {
+  if (!options.out && options.write !== false) {
     const byPath = new Map();
     for (const { model } of parsed.filter((p) => p.model)) {
       try {
@@ -83,6 +83,7 @@ export async function convert(inputPath, options = {}) {
       }
     }
   }
+  const inputResolved = resolve(inputPath);
   for (const { model } of parsed.filter((p) => p.model && !colliding.has(p.model))) {
     try {
       const analysis = cfg.analysis.enabled || options.analyze ? analyzeModel(model, cfg) : null;
@@ -98,14 +99,22 @@ export async function convert(inputPath, options = {}) {
         result.xml = xml;
         if (options.write !== false) {
           const dmnPath = options.out || paths.get(model) || outputPath(model, inputPath, cfg);
+          const jsonPath =
+            cfg.output.writeModelJson || options.json
+              ? /\.dmn$/i.test(dmnPath)
+                ? dmnPath.replace(/\.dmn$/i, '.model.json')
+                : `${dmnPath}.model.json`
+              : null;
+          for (const p of [dmnPath, jsonPath])
+            if (p && resolve(p) === inputResolved)
+              throw new Error(
+                `output path ${p} is the input workbook — choose another --out / output.fileNameTemplate`,
+              );
           mkdirSync(dirname(dmnPath), { recursive: true });
           writeFileSync(dmnPath, xml, 'utf8');
           result.path = dmnPath;
-          if (cfg.output.writeModelJson || options.json) {
+          if (jsonPath) {
             // An --out name without a .dmn extension must not be overwritten by its model.
-            const jsonPath = /\.dmn$/i.test(dmnPath)
-              ? dmnPath.replace(/\.dmn$/i, '.model.json')
-              : `${dmnPath}.model.json`;
             writeFileSync(jsonPath, JSON.stringify(stripInternal(model), null, 2), 'utf8');
             result.jsonPath = jsonPath;
           }
@@ -196,6 +205,10 @@ export async function importDmn(dmnPath, options = {}) {
         : `${dmnPath}.xlsx`
       : 'decision_DMN.xlsx');
   if (options.write !== false) {
+    if (dmnPath && resolve(out) === resolve(dmnPath))
+      throw new Error(
+        `Cannot import ${dmnPath}: the output would overwrite the input DMN — choose another -o`,
+      );
     try {
       // Like convert, create missing parent directories of the output (spec §7).
       mkdirSync(dirname(out), { recursive: true });

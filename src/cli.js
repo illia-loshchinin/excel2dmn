@@ -128,35 +128,49 @@ async function initAction(opts) {
   console.log(`✓ wrote template ${out}`);
 }
 
-async function confirmOverwrite(path) {
-  if (!process.stdin.isTTY) return false;
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const ans = await rl.question(`${path} already exists — overwrite? [y/N] `);
-    return /^(y|yes)$/i.test(ans.trim());
-  } finally {
-    rl.close();
-  }
+async function confirmOverwrite(path, ask) {
+  if (!ask) return false;
+  const ans = await ask(`${path} already exists — overwrite? [y/N] `);
+  return /^(y|yes)$/i.test(ans.trim());
 }
 
 async function configAction(opts) {
   const out = resolve(opts.out);
-  if (existsSync(out) && !opts.force && !(await confirmOverwrite(out))) {
-    fail(`${out} exists; use --force to overwrite`);
+  // One readline interface (and line iterator) serves the overwrite question and the wizard, so
+  // answers that arrive together (paste, piped into a pty) are not lost between the two.
+  const rl = process.stdin.isTTY
+    ? createInterface({ input: process.stdin, output: process.stdout })
+    : null;
+  try {
+    const lines = rl ? rl[Symbol.asyncIterator]() : null;
+    const ask = rl
+      ? async (q) => {
+          process.stdout.write(q);
+          const { value, done } = await lines.next();
+          if (done) throw new Error('aborted: input ended before the config wizard finished');
+          return value;
+        }
+      : undefined;
+    if (existsSync(out) && !opts.force && !(await confirmOverwrite(out, ask))) {
+      fail(`${out} exists; use --force to overwrite`);
+    }
+    // The wizard needs a terminal; say so rather than silently writing the full defaults.
+    if (!opts.defaults && !process.stdin.isTTY)
+      console.error(
+        'note: stdin is not a TTY, so the interactive wizard cannot run; writing the full default config (as with --defaults)',
+      );
+    const cfg = await buildConfig({
+      input: process.stdin,
+      output: process.stdout,
+      defaults: opts.defaults,
+      full: opts.full,
+      prompt: opts.defaults ? undefined : ask,
+    });
+    writeFileSync(out, serializeConfig(cfg), 'utf8');
+    console.log(`✓ wrote config ${out}`);
+  } finally {
+    rl?.close();
   }
-  // The wizard needs a terminal; say so rather than silently writing the full defaults.
-  if (!opts.defaults && !process.stdin.isTTY)
-    console.error(
-      'note: stdin is not a TTY, so the interactive wizard cannot run; writing the full default config (as with --defaults)',
-    );
-  const cfg = await buildConfig({
-    input: process.stdin,
-    output: process.stdout,
-    defaults: opts.defaults,
-    full: opts.full,
-  });
-  writeFileSync(out, serializeConfig(cfg), 'utf8');
-  console.log(`✓ wrote config ${out}`);
 }
 
 export function buildProgram() {
