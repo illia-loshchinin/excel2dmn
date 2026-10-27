@@ -243,14 +243,15 @@ export function parseSheet(ws, cfg) {
     const inputEntries = inputs.map((d) => normInput(cellText(ws, r, d.col)));
     const outputEntries = outputs.map((d) => cellText(ws, r, d.col));
 
-    if (cfg.validation.feel.mode !== 'off') {
-      inputs.forEach((d, i) => {
-        if (cfg.validation.feel.mode === 'any-inputs' && !isAnyType(d.typeRef, cfg)) return;
-        const err = check(inputEntries[i], d.typeRef, 'unary');
-        if (err) problems.add(`input '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
-        else checkDomain(d, 'input', inputEntries[i], 'unary', r);
-      });
-    }
+    const feelMode = cfg.validation.feel.mode;
+    inputs.forEach((d, i) => {
+      // Domain checks run for every input; FEEL validation only where the mode applies.
+      const feelApplies =
+        feelMode === 'all-inputs' || (feelMode === 'any-inputs' && isAnyType(d.typeRef, cfg));
+      const err = feelApplies ? check(inputEntries[i], d.typeRef, 'unary') : null;
+      if (err) problems.add(`input '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
+      else checkDomain(d, 'input', inputEntries[i], 'unary', r);
+    });
     outputs.forEach((d, i) => {
       let text = outputEntries[i];
       if (text === '') return;

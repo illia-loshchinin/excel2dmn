@@ -438,7 +438,16 @@ export async function buildConfig({
   }
 
   const rl = prompt ? null : createInterface({ input, output });
-  const promptFn = prompt || ((q) => rl.question(q));
+  // An async line iterator consumes lines that arrive together (paste, piped into a pty).
+  const lines = rl ? rl[Symbol.asyncIterator]() : null;
+  const promptFn =
+    prompt ||
+    (async (q) => {
+      output.write(q);
+      const { value, done } = await lines.next();
+      if (done) throw new Error('aborted: input ended before the config wizard finished');
+      return value;
+    });
   const write = (s) => output.write(s);
   let overrides = {};
   const apply = (o) => (overrides = deepMerge(overrides, o));

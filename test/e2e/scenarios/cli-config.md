@@ -163,8 +163,8 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 
 ### CLI-013: input path is a directory
 
-- **Given** `T/dir/` (empty directory). **When** `excel2dmn dir`.
-- **Then** fails (exit 1) with an error naming `dir`; nothing written.
+- **Given** `T/folder_DMN.xlsx/` (empty directory). **When** `excel2dmn folder_DMN.xlsx`.
+- **Then** fails (exit 1) with an error naming `folder_DMN.xlsx`; nothing written.
 - **Source** **spec silent**.
 
 ### CLI-014: workbook with zero matching sheets
@@ -537,23 +537,23 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 
 ### CLI-085: duplicate decision ids across sheets are a hard error
 
-- **Given** W2 with the `Returns_ DMN` id changed to `SHIPPING`.
+- **Given** W2 with the `Returns_ DMN` id changed to `SHIPPING`, plus a third valid sheet `Other DMN` (id `OTHER`).
 - **When** `excel2dmn book.xlsx --out-dir out`.
-- **Then** fails; stderr names the id `SHIPPING` and both sheets `Shipping DMN` and `Returns_ DMN`; no `SHIPPING_2.dmn` (or any suffixed file) appears; at most one `SHIPPING.dmn`, and preferably none.
+- **Then** fails; stderr names the id `SHIPPING` and both sheets `Shipping DMN` and `Returns_ DMN`; no `SHIPPING.dmn` or suffixed file appears; the third sheet is still written (`out/OTHER.dmn` is the only `.dmn`).
 - **Source** spec §3 intro ("A duplicate decision id across two sheets ⇒ hard error (they would overwrite each other) — fix the `id` markers"), §5 Step 1 ("Track decision ids across sheets and error on a duplicate"). **spec conflict**: §6.4 and §7.1 `identity.collisionSuffix` describe suffixing `_2` on collision "across the repo". Decided: hard error, as §3/§5 say; §6.4 and §7.1 were corrected (`collisionSuffix` only applies to rule ids inside one decision).
 
 ### CLI-086: duplicate ids that only collide after sanitization
 
 - **Given** W2 with ids `Zürich Süd` (Shipping) and `ZURICH_SUD` (Returns).
 - **When** convert.
-- **Then** fails as in CLI-085, naming `ZURICH_SUD`.
+- **Then** fails as in CLI-085 (no `.dmn` written at all), naming `ZURICH_SUD`.
 - **Source** spec §3 intro, §6.4 (`Zürich Süd` → `ZURICH_SUD`). Collision is on the output id because that is what names the file.
 
 ### CLI-087: duplicate ids are case-folded before comparison
 
 - **Given** W2 with ids `shipping` and `SHIPPING`.
 - **When** convert.
-- **Then** fails as in CLI-085 (both sanitize to `SHIPPING`).
+- **Then** fails as in CLI-085 (no `.dmn` written at all; both sanitize to `SHIPPING`).
 - **Source** spec §6.4 (`toNcNameId` upper-cases), §3 intro.
 
 ### CLI-088: duplicate ids in a sheet excluded by `--sheet` are not an error
@@ -562,6 +562,20 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 - **When** `excel2dmn book.xlsx --sheet "Shipping DMN"`.
 - **Then** succeeds; `SHIPPING.dmn` written.
 - **Source** spec §5 Step 1 (only selected sheets are processed).
+
+### CLI-088a: a fixed `output.fileNameTemplate` shared by two sheets is an error
+
+- **Given** W2, config `{ "output": { "fileNameTemplate": "fixed.dmn" } }`.
+- **When** convert.
+- **Then** exit `1`; stderr names `fixed.dmn`, both sheets and `output.fileNameTemplate`; no `.dmn` written.
+- **Source** spec §3 intro (sheets must not overwrite each other's output). **spec silent** on template collisions.
+
+### CLI-088b: an output path outside the output directory is a per-sheet error
+
+- **Given** `T/sub/book.xlsx` with sheets `Evil DMN` (id `../evil`) and `Good DMN` (id `GOOD`); config `{ "identity": { "sanitizeId": false } }`.
+- **When** convert.
+- **Then** exit `1`; stderr names `Evil DMN` and says the output would be outside the output directory; `sub/GOOD.dmn` is written and nothing is written outside `sub/`.
+- **Source** **spec silent**; a decision id must not steer the output outside the output directory.
 
 ### CLI-089: sheets with the same name prefix are independent
 
@@ -1084,12 +1098,26 @@ and the rule ids, not on full sentences.
 - **Then** exit `0`; stderr empty; no warning text on stdout.
 - **Source** spec §7.1.
 
+### CLI-174a: invalid regex in `sheet.value` is a config error
+
+- **Given** W1, config `{ "sheet": { "match": "regex", "value": "([" } }`.
+- **When** convert.
+- **Then** exit `1`; stderr says `sheet.value is not a valid regular expression`; nothing written.
+- **Source** spec §7.1 ("clear errors").
+
 ### CLI-179: zero input columns: warn but continue
 
 - **Given** sheet `NoIn DMN`: `id` = `NOIN`, one `output` `result` (`string`), rows 5 `"A"`.
 - **When** convert.
 - **Then** exit `0`; `NOIN.dmn` written with no `<input>` and one rule; a warning about zero inputs is printed (naming `NoIn DMN`).
 - **Source** spec §5 Step 2 ("Zero `input` columns is allowed by DMN (rare) — warn but continue").
+
+### CLI-179a: `enforceAllowedValues` rejects an out-of-domain input whatever `validation.feel.mode` is
+
+- **Given** sheet `Dom DMN` with the allowed-values layout: `id` = `DOM`, `input` `region` (`string`) with allowed values `"EU","US"`, `output` `result` (`string`), one rule `"APAC"` → `"X"`; config with `validation.enforceAllowedValues: true` and `validation.feel.mode` `all-inputs`, `any-inputs`, `off` in turn.
+- **When** convert.
+- **Then** each run exits `1`, naming `Dom DMN!B6` and that the value is outside the allowed values; nothing written.
+- **Source** spec §3.6 (domain checks are independent of FEEL validation).
 
 ---
 
@@ -1291,6 +1319,12 @@ and the rule ids, not on full sentences.
 - **Given** empty `T`. **When** `excel2dmn init --sheet "Pricing" -o p.xlsx`.
 - **Then** exit `0`; the file is written; a warning on stderr says the sheet name does not match the configured sheet filter (`DMN`) so `excel2dmn` will not convert it.
 - **Source** spec §7.2 (decided: write the file and warn). Converting `p.xlsx` afterwards fails as in CLI-014.
+
+### CLI-221a: `--sheet` violating Excel's sheet-name rules is rejected
+
+- **Given** empty `T`. **When** `excel2dmn init --sheet <name> -o p.xlsx` with a name longer than 31 characters, or containing one of `: \ / ? * [ ]`.
+- **Then** exit `1`; stderr names the sheet and the violated rule; no file written.
+- **Source** Excel's sheet-name rules. **spec silent**.
 
 ### CLI-222: `--minimal` drops the annotation column and example rules
 
@@ -1496,6 +1530,13 @@ and the rule ids, not on full sentences.
 - **When** `excel2dmn config --defaults` run under a pseudo-terminal, answering `y` to `… already exists — overwrite? [y/N]`.
 - **Then** exit `0`; file overwritten. Answering Enter or `n`: exit `1`, file unchanged.
 - **Source** `--help` for `--force` ("without confirmation" implies a confirmation otherwise). Needs a pty; mark the test `skip` when no pty helper is available (no new dependencies may be added).
+
+### CLI-261: the wizard reads answers that arrive together on a TTY
+
+- **Given** empty `T`; the `config -o w.json` wizard run under a pseudo-terminal.
+- **When** every answer (`camunda8` for the platform, Enter elsewhere) is supplied at once as one stdin string.
+- **Then** exit `0`; `w.json` parses to `{ "platform": "camunda8" }`.
+- **Source** `config` wizard behaviour; regression for lines pasted together being dropped. Needs a pty; skipped when none is available.
 
 ---
 

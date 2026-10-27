@@ -469,7 +469,7 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 - **Given** IMPORT-036.
 - **Then** stdout contains a hint that the template uses the allowed-values layout and how
   to enable it on re-convert (mentions `allowedValuesOffset`, `labelOffset` and
-  `startOffset`); importing with the 5-row config prints no hint.
+  `startOffset`, with the values `3`, `4` and `5`); importing with the 5-row config prints no hint.
 - **Spec:** spec silent. Without it, re-converting with the default config misreads the
   allowed-values row as the label row and the label row as a rule (§3.1 offsets). Decided:
   print the hint (§7.3).
@@ -1057,6 +1057,13 @@ D-LITERAL's `Greeting` decision followed by D-MULTI's `Eligibility` decision (ta
 - **Then** exit `1`; the message names the file, the detected version (`DMN 1.1` / `DMN 1.2`)
   and says `not DMN 1.3`; nothing written.
 - **Spec:** §7.3 (decided: detect and reject other DMN versions).
+
+### IMPORT-109a — a comment before the root is ignored
+
+- **Given** D-MODELER-C7 with an XML comment before `<definitions>` that itself contains a DMN 1.1 `<definitions xmlns="…20151101…">`.
+- **When** import.
+- **Then** exit `0`; the file imports (the version check looks at the real root only).
+- **Spec:** §7.3 (version detection must not be fooled by comments).
 
 ### IMPORT-110 — only a literal-expression decision
 

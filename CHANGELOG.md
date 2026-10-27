@@ -33,6 +33,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `validation.enforceAllowedValues` now rejects out-of-domain input values whatever `validation.feel.mode` is (they were skipped with `"off"`, and with `"any-inputs"` for typed columns).
+- Every error printed by the CLI now carries the `error: ` prefix (read and config errors were bare).
+- Two sheets whose output file is the same (e.g. a fixed `output.fileNameTemplate`) are reported as an error and not written, instead of silently overwriting each other; `output.fileNameTemplate` must be non-empty. An output path that would leave the output directory (e.g. an id of `../x` with `identity.sanitizeId: false`) is rejected for that sheet.
+- `excel2dmn init --sheet` rejects names Excel does not allow (longer than 31 characters or containing `: \ / ? * [ ]`).
+- An invalid regular expression in `sheet.value` (with `sheet.match: "regex"`) is reported as a config error.
+- `output.fileNameTemplate` placeholders are substituted literally (an id containing `$&` is no longer expanded).
+- `excel2dmn import` no longer mistakes an old-version `<definitions>` inside an XML comment for the root.
+- The `excel2dmn config` wizard consumes answers that arrive together (pasted or piped into a terminal) instead of dropping all but the first.
 - `excel2dmn import -o` into a directory that does not exist failed; missing parent directories are now created, as for convert.
 - Read errors for the input of convert and import name the path (`Cannot read <path>: it is a directory, not a file` instead of a bare `EISDIR` or "not a valid .xlsx workbook").
 - `excel2dmn import` of a DMN 1.1/1.2 (or 1.4/1.5) file is rejected with a message naming the DMN version, instead of a confusing "no decision table" error.

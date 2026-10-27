@@ -135,7 +135,7 @@
         },
         "format": { "type": "boolean" },
         "outDir": { "$ref": "#/$defs/nullableString" },
-        "fileNameTemplate": { "type": "string" },
+        "fileNameTemplate": { "type": "string", "minLength": 1 },
         "writeModelJson": { "type": "boolean" }
       }
     },

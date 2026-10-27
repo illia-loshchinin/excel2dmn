@@ -924,6 +924,9 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
       const { r } = await importOk(dmn, 'back.xlsx');
       for (const key of ['allowedValuesOffset', 'labelOffset', 'startOffset'])
         expect(r.stdout).toContain(key);
+      expect(r.stdout).toMatch(/"allowedValuesOffset": 3/);
+      expect(r.stdout).toMatch(/"labelOffset": 4/);
+      expect(r.stdout).toMatch(/"startOffset": 5/);
       // The import under the 5-row config itself needs no hint.
       const again = cli(['import', dmn, '-o', 'again.xlsx', '--config', 'av.json']);
       expectOk(again);
@@ -1958,6 +1961,13 @@ describe('DMN -> Excel import and round-trips (e2e)', { timeout: 120_000 }, () =
         expect(r.stderr).toContain('not DMN 1.3');
         expectNoXlsx();
       }
+    });
+
+    it('IMPORT-109a a comment holding an old namespace before the root is ignored', () => {
+      const old = '<!-- was <definitions xmlns="http://www.omg.org/spec/DMN/20151101/dmn.xsd"> -->';
+      writeDmn('commented.dmn', D_MODELER_C7.replace(/(<(?:\w+:)?definitions\b)/, `${old}\n$1`));
+      const r = cli(['import', 'commented.dmn']);
+      expectOk(r);
     });
 
     it('IMPORT-110 only a literal-expression decision', () => {

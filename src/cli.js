@@ -110,6 +110,12 @@ async function initAction(opts) {
   const target = resolve(opts.out);
   // The existing file is likely a filled-in template; never replace it silently.
   if (existsSync(target) && !opts.force) fail(`${target} exists; use --force to overwrite`);
+  if (opts.sheet && opts.sheet.length > 31)
+    fail(`sheet name "${opts.sheet}" is longer than 31 characters (Excel's sheet-name limit)`);
+  if (opts.sheet && /[:\\/?*[\]]/.test(opts.sheet))
+    fail(
+      `sheet name "${opts.sheet}" contains a character Excel does not allow in sheet names (: \\ / ? * [ ])`,
+    );
   if (opts.sheet && !sheetMatches(opts.sheet, cfg))
     console.error(
       `warning: sheet "${opts.sheet}" does not match the sheet config (${cfg.sheet.match} "${cfg.sheet.value}"), so converting this workbook will not select it${cfg.sheet.match === 'contains' ? `; include "${cfg.sheet.value}" in the sheet name` : ''}`,

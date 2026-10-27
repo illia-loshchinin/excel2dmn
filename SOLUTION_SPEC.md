@@ -137,7 +137,7 @@ Resolution order for the effective hit policy:
 
 Reference workbook: `shipping_rates_DMN.xlsx`, sheet `Shipping Rates_ DMN`. It includes `id`, `name`, and `policy` marker columns in the marker row; rules are read from the rows below the header via the `input`/`output` columns (no anchor column).
 
-- Identity: `id` = `SHIPPING_RATES` → `decision.id`; `name` = `Shipping Rate Decision` → `decision.name`; `policy` = `UNIQUE`. Markers sit in the marker row: `A=policy`, `B=ID`, `C=name`; the `L1` cell holds the literal banner `NOT PART OF DMN` (a helper, ignored). 4-row header (marker/name/type/label); 5 inputs, 2 outputs, 1 annotation column (`Comment`), 5 rules (Excel rows 5–9 → ids `rule_5`…`rule_9`). (Allowed values are the opt-in layout; see §3.6.)
+- Identity: `id` = `SHIPPING_RATES` → `decision.id`; `name` = `Shipping Rate Decision` → `decision.name`; `policy` = `UNIQUE`. Markers sit in the marker row: `A=policy`, `B=ID`, `C=name`; the `L1` cell holds the literal banner `NOT PART OF DMN` (a helper, ignored). 4-row header (marker/name/type/label); 5 inputs, 2 outputs, 1 annotation column (`Comment`), 5 rules (Excel rows 5–9 → ids `rule_1`…`rule_5`). (Allowed values are the opt-in layout; see §3.6.)
 - Inputs: `orderTotal:number`, `region:string`, `isMember:boolean`, `weightKg:number`, `tags:any`.
 - Outputs: `shippingMethod:string`, `deliveryDays:number` (exercises both the quoted-string-output rule and the unquoted-number-output path).
 - Allowed values (row 5): `region` = `"EU","US"` → `<inputValues>`; `isMember` = `true,false`; `shippingMethod` = `"STANDARD","EXPRESS","FREIGHT"` → `<outputValues>`.
@@ -553,7 +553,7 @@ excel2dmn <input.xlsx> [options]     # convert (default command)
 excel2dmn init [options]             # write a starter template workbook (§7.2)
 ```
 
-**Output channels.** stdout carries one success line per written sheet (`✓ <sheet> → <path>`), import/init/config success lines, `ℹ` hints and the analysis report. **stderr** carries everything else: errors (`error: …`, `✗ <sheet>:` blocks with `[Sheet!Cell]` problems), and **warnings**, one per line, as `⚠ <sheet>: [<Sheet!Cell>] <message>` for conversion warnings (`types.nonCamundaTypeAction: "warn"`, a table with zero input columns) or `warning: <message>` for CLI/config warnings (unknown config keys, an `init --sheet` name the converter will not select). Warnings never change the exit code; `analysis.failOn` does. Read errors for the input file name its path (`Cannot read <path>: it is a directory, not a file`, `… no such file or directory`, `… permission denied`).
+**Output channels.** stdout carries one success line per written sheet (`✓ <sheet> → <path>`), import/init/config success lines, `ℹ` hints and the analysis report. **stderr** carries everything else: errors (`error: …`, `✗ <sheet>:` blocks with `[Sheet!Cell]` problems), and **warnings**, one per line, as `⚠ <sheet>: [<Sheet!Cell>] <message>` for conversion warnings (the `[<Sheet!Cell>]` part is omitted when the warning has no cell, e.g. zero input columns) (`types.nonCamundaTypeAction: "warn"`, a table with zero input columns) or `warning: <message>` for CLI/config warnings (unknown config keys, an `init --sheet` name the converter will not select). Warnings never change the exit code; `analysis.failOn` does. Read errors for the input file name its path (`error: Cannot read <path>: it is a directory, not a file`, `error: Cannot read <path>: no such file or directory`, `error: Cannot read <path>: permission denied`).
 
 **Output filenames (one per DMN sheet).** Each `.dmn` is named from that sheet's decision id via `output.fileNameTemplate` (default `"<decisionId>.dmn"`, e.g. `SHIPPING_RATES.dmn`, `RETURNS.dmn`), written into `--out-dir`. `--out <file>` is a convenience for the single-sheet case and errors when 2+ sheets match. Files are emitted **atomically per sheet** — a validation error in sheet B does not delete sheet A's already-written output, but the process still exits non-zero and reports every failing sheet.
 
@@ -593,7 +593,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
 
   // --- rule detection (no anchor column; driven by input/output data) ---
   "rules": {
-    "startOffset": 5, // rules start at markerRow + startOffset (M+5 with allowed-values row; 4 without)
+    "startOffset": 4, // rules start at markerRow + startOffset (M+4 by default; 5 with the allowed-values row)
     "detectBy": "input-output", // a row is a rule if any input/output cell is non-empty
     "stopOnEmptyRow": true, // stop at first row with all input/output cells empty
     "idTemplate": "rule_<n>", // <n> = 1-based rule index (default); <row> = Excel row also available
@@ -604,11 +604,8 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
 
   // --- decision id / name rules ---
   "identity": {
-    "idFrom": "ID", // marker role that supplies decision.id
-    "nameFrom": "name", // marker role for decision.name (falls back to idFrom)
     "sanitizeId": true, // apply toNcNameId to decision.id
     "idCase": "upper", // "upper" | "preserve"
-    "foldMap": { "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D", "ß": "ss" },
     "collisionSuffix": "_", // _2, _3 … on duplicate rule ids inside one decision (e.g. an idTemplate without <n>/<row>); decision ids are never suffixed (§3)
   },
 
@@ -634,7 +631,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
       "integer",
       "long",
       "double",
-      "any",
+      "Any",
       "date",
       "time",
       "dateTime",
@@ -642,6 +639,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
       "yearMonthDuration",
     ],
     "numeric": ["number", "integer", "long", "double"], // validated with numeric rules
+    "camunda8NumericAlias": "number", // Camunda 8 output: integer/long/double are written as this (null → unchanged)
     "camundaTypes": ["string", "boolean", "integer", "long", "double", "date"], // Camunda decision-table types (+ "any")
     "nonCamundaTypeAction": "error", // typeRef valid in DMN/FEEL but not Camunda (e.g. "number"): "error" (default) | "warn" | "off"
     "syntaxOnly": ["date", "time", "dateTime", "dayTimeDuration", "yearMonthDuration"],
@@ -657,7 +655,7 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
       "mode": "all-inputs", // "all-inputs" | "any-inputs" | "off"
       "failFast": false, // false → collect all errors, report together
     },
-    "enforceAllowedValues": false, // true → rule entries must fall within row-M+4 domains (§3.6)
+    "enforceAllowedValues": false, // true → rule entries must fall within row-M+3 (allowed-values row) domains (§3.6)
   },
 
   // --- output entries (quote rule applies to string-typed outputs only) ---
@@ -684,11 +682,20 @@ All marker keywords and parsing/naming rules are **externalized** here so they c
     "expressionLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
     "typeLanguage": "https://www.omg.org/spec/DMN/20191111/FEEL/",
     "namespaceStyle": "default", // "default" (unprefixed MODEL ns) | "prefixed" (dmn:)
-    "shape": { "x": -230, "y": 0, "width": 180, "height": 80 },
+    "shape": { "x": 160, "y": 100, "width": 180, "height": 80 },
     "format": true, // pretty-print
     "outDir": null, // null → write beside the input .xlsx; else this dir
     "fileNameTemplate": "<decisionId>.dmn", // one file per DMN sheet; also "<sheetName>.dmn"
     "writeModelJson": false, // true → also emit <decisionId>.model.json per sheet
+  },
+
+  // --- static analysis (--analyze runs it regardless of "enabled") ---
+  "analysis": {
+    "enabled": false, // true → analyze on every run
+    "checks": ["overlap", "duplicate", "shadowed", "gaps"],
+    "failOn": "none", // "none" | "error" | "any" → exit 1 on findings of that severity ("any" = warnings too)
+    "format": "text", // "text" | "json"
+    "gapsMaxCombos": 100000, // skip the gaps check beyond this many input combinations
   },
 }
 ```
@@ -738,6 +745,8 @@ excel2dmn import <input.dmn> [-o <file.xlsx>] [--config <file>]
 - When the DMN carries allowed values (`<inputValues>`/`<outputValues>`) but the config has no allowed-values row, the template switches to the 5-row layout so nothing is lost, and stdout prints a hint naming the config needed to convert it back: `header.allowedValuesOffset 3`, `header.labelOffset 4`, `rules.startOffset 5`.
 - A Camunda 8 source prints a hint to re-convert with `--platform camunda8` (§6.6).
 - Read and write errors name the path.
+
+## 8. CI/CD (GitLab)
 
 `.gitlab-ci.yml`:
 

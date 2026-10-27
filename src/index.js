@@ -1,6 +1,6 @@
 // Public API: parseWorkbook, buildDmn, convert. Spec §5–§6.
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, join, basename, extname } from 'node:path';
+import { dirname, join, basename, extname, relative, isAbsolute, resolve, sep } from 'node:path';
 import { loadConfig, deepMerge } from './config.js';
 import { parseWorkbookSheets } from './excel-to-json.js';
 import { buildDmn } from './json-to-dmn.js';
@@ -20,10 +20,18 @@ export { ConversionError } from './errors.js';
 
 function outputPath(model, inputPath, cfg) {
   const dir = cfg.output.outDir || dirname(inputPath);
+  const id = model.decisions[0].id;
   const file = cfg.output.fileNameTemplate
-    .replace('<decisionId>', model.decisions[0].id)
-    .replace('<sheetName>', model.__sheet || model.decisions[0].id);
-  return join(dir, file);
+    .replace('<decisionId>', () => id)
+    .replace('<sheetName>', () => model.__sheet || id);
+  const path = join(dir, file);
+  const rel = relative(dir, path);
+  // '' = the directory itself (e.g. a "." template); '..' segments or an absolute path escape it.
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+    throw new Error(
+      `output path ${path} for decision '${id}' (sheet "${model.__sheet}") would be written outside the output directory ${dir} — check output.fileNameTemplate and the decision id`,
+    );
+  return path;
 }
 
 /**
@@ -44,7 +52,38 @@ export async function convert(inputPath, options = {}) {
 
   const results = [];
   const problems = parsed.filter((p) => p.error).map(({ sheet, error }) => ({ sheet, error }));
-  for (const { model } of parsed.filter((p) => p.model)) {
+
+  // Two sheets resolving to one output file would overwrite each other: fail them all.
+  const paths = new Map();
+  const colliding = new Set();
+  if (!options.out && options.write !== false && !options.validateOnly) {
+    const byPath = new Map();
+    for (const { model } of parsed.filter((p) => p.model)) {
+      try {
+        const path = outputPath(model, inputPath, cfg);
+        paths.set(model, path);
+        const key = resolve(path).toLowerCase();
+        byPath.set(key, [...(byPath.get(key) || []), model]);
+      } catch (error) {
+        problems.push({ sheet: model.__sheet, error });
+        colliding.add(model);
+      }
+    }
+    for (const group of byPath.values()) {
+      if (group.length < 2) continue;
+      const names = group.map((m) => `"${m.__sheet}"`).join(', ');
+      for (const m of group) {
+        problems.push({
+          sheet: m.__sheet,
+          error: new Error(
+            `output path ${paths.get(m)} is used by sheets ${names} — check output.fileNameTemplate`,
+          ),
+        });
+        colliding.add(m);
+      }
+    }
+  }
+  for (const { model } of parsed.filter((p) => p.model && !colliding.has(p.model))) {
     try {
       const analysis = cfg.analysis.enabled || options.analyze ? analyzeModel(model, cfg) : null;
       const result = {
@@ -58,7 +97,7 @@ export async function convert(inputPath, options = {}) {
         const xml = await buildDmn(model, cfg);
         result.xml = xml;
         if (options.write !== false) {
-          const dmnPath = options.out || outputPath(model, inputPath, cfg);
+          const dmnPath = options.out || paths.get(model) || outputPath(model, inputPath, cfg);
           mkdirSync(dirname(dmnPath), { recursive: true });
           writeFileSync(dmnPath, xml, 'utf8');
           result.path = dmnPath;
@@ -90,7 +129,7 @@ const DMN_VERSIONS = {
 
 /** Reject a DMN whose root <definitions> uses another DMN version's namespace. */
 function assertDmn13(xml) {
-  const root = /<(?:([\w.-]+):)?definitions\b[^>]*>/.exec(xml);
+  const root = /<(?:([\w.-]+):)?definitions\b[^>]*>/.exec(xml.replace(/<!--[\s\S]*?-->/g, ''));
   if (!root) return; // not DMN at all: dmnToModels reports that
   const attr = root[1] ? `xmlns:${root[1]}` : 'xmlns';
   const ns = new RegExp(`\\s${attr}\\s*=\\s*(["'])(.*?)\\1`).exec(root[0])?.[2];

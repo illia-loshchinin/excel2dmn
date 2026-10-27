@@ -220,6 +220,15 @@ export function loadConfig({
   }
   const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
   assertValidConfig(merged, fromFile ? path : null);
+  if (merged.sheet.match === 'regex') {
+    try {
+      new RegExp(merged.sheet.value, 'i');
+    } catch (err) {
+      throw new Error(
+        `Invalid config ${fromFile ? path : '(defaults)'}:\n  sheet.value is not a valid regular expression (${err.message})`,
+      );
+    }
+  }
   const fallback = String(merged.hitPolicy.default).toUpperCase();
   if (merged.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(fallback))
     throw new Error(

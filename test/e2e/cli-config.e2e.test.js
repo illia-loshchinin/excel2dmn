@@ -428,11 +428,11 @@ describe('B. Convert: input errors and exit codes', OPTS, () => {
 
   it('CLI-013 input path is a directory', () => {
     const dir = T();
-    mkdirSync(join(dir, 'dir'));
-    const r = cli(dir, ['dir']);
-    expectFail(r, 'dir');
-    expect(listFiles(dir)).toEqual(['dir']);
-    expect(listFiles(join(dir, 'dir'))).toEqual([]);
+    mkdirSync(join(dir, 'folder_DMN.xlsx'));
+    const r = cli(dir, ['folder_DMN.xlsx']);
+    expectFail(r, 'folder_DMN.xlsx');
+    expect(listFiles(dir)).toEqual(['folder_DMN.xlsx']);
+    expect(listFiles(join(dir, 'folder_DMN.xlsx'))).toEqual([]);
   });
 
   it('CLI-014 workbook with zero matching sheets', async () => {
@@ -1027,12 +1027,14 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
 
   it('CLI-085 duplicate decision ids across sheets are a hard error', async () => {
     const dir = T();
-    await book(dir, 'book.xlsx', w2({ returnsId: 'SHIPPING' }));
+    await book(
+      dir,
+      'book.xlsx',
+      w2({ returnsId: 'SHIPPING', extra: { 'Other DMN': returnsSheet('OTHER') } }),
+    );
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
     expectFail(r, 'SHIPPING', 'Shipping DMN', 'Returns_ DMN');
-    const files = dmnFiles(dir);
-    expect(files.filter((f) => /SHIPPING_/.test(f))).toEqual([]);
-    expect(files.length).toBeLessThanOrEqual(1);
+    expect(dmnFiles(dir)).toEqual(['out/OTHER.dmn']);
   });
 
   it('CLI-086 duplicate ids that only collide after sanitization', async () => {
@@ -1040,9 +1042,7 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     await book(dir, 'book.xlsx', w2({ shippingId: 'Zürich Süd', returnsId: 'ZURICH_SUD' }));
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
     expectFail(r, 'ZURICH_SUD', 'Shipping DMN', 'Returns_ DMN');
-    const files = dmnFiles(dir);
-    expect(files.filter((f) => /ZURICH_SUD_/.test(f))).toEqual([]);
-    expect(files.length).toBeLessThanOrEqual(1);
+    expect(dmnFiles(dir)).toEqual([]);
   });
 
   it('CLI-087 duplicate ids are case-folded before comparison', async () => {
@@ -1050,9 +1050,7 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     await book(dir, 'book.xlsx', w2({ shippingId: 'shipping', returnsId: 'SHIPPING' }));
     const r = cli(dir, ['book.xlsx', '--out-dir', 'out']);
     expectFail(r, 'SHIPPING', 'Shipping DMN', 'Returns_ DMN');
-    const files = dmnFiles(dir);
-    expect(files.filter((f) => /SHIPPING_/.test(f))).toEqual([]);
-    expect(files.length).toBeLessThanOrEqual(1);
+    expect(dmnFiles(dir)).toEqual([]);
   });
 
   it('CLI-088 duplicate ids in a sheet excluded by --sheet are not an error', async () => {
@@ -1072,6 +1070,27 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     const r = cli(dir, ['w.xlsx']);
     await expectOk(r, dir);
     expect(dmnFiles(dir).sort()).toEqual(['A.dmn', 'B.dmn']);
+  });
+
+  it('CLI-088a a fixed output.fileNameTemplate shared by two sheets is an error', async () => {
+    const dir = T();
+    await book(dir, 'book.xlsx', w2());
+    writeCfg(dir, { output: { fileNameTemplate: 'fixed.dmn' } });
+    const r = cli(dir, ['book.xlsx', '--config', CFG]);
+    expectFail(r, 'fixed.dmn', 'Shipping DMN', 'Returns_ DMN', 'output.fileNameTemplate');
+    expect(dmnFiles(dir)).toEqual([]);
+  });
+
+  it('CLI-088b an output path outside the output directory is a per-sheet error', async () => {
+    const dir = T();
+    await book(dir, 'sub/book.xlsx', {
+      'Evil DMN': setCells(w1(), { A2: '../evil' }),
+      'Good DMN': setCells(w1(), { A2: 'GOOD' }),
+    });
+    writeCfg(dir, { identity: { sanitizeId: false } });
+    const r = cli(dir, ['sub/book.xlsx', '--config', CFG]);
+    expectFail(r, 'Evil DMN', 'outside the output directory');
+    expect(dmnFiles(dir)).toEqual(['sub/GOOD.dmn']);
   });
 
   it('CLI-090 a DMN sheet with no marker row fails, others still convert', async () => {
@@ -1830,6 +1849,12 @@ describe('J. Config file discovery, precedence and validation', OPTS, () => {
     ]);
   });
 
+  it('CLI-174a an invalid regex in sheet.value is a config error', async () => {
+    await badConfig({ sheet: { match: 'regex', value: '([' } }, [
+      /sheet\.value is not a valid regular expression/,
+    ]);
+  });
+
   const RENAMED = { markers: { id: 'KEY', input: 'in', output: 'out' } };
 
   it('CLI-175 --config applies to init', async () => {
@@ -1895,6 +1920,28 @@ describe('J. Config file discovery, precedence and validation', OPTS, () => {
     const warn = lines(all).filter((l) => /\b(no|zero|0)\s+input/i.test(l));
     expect(warn.length, dump(r)).toBeGreaterThan(0);
     expect(warn.join('\n') + r.stderr).toContain('NoIn DMN');
+  });
+
+  it('CLI-179a enforceAllowedValues rejects an out-of-domain input whatever validation.feel.mode is', async () => {
+    const dir = T();
+    const rows = decisionSheet(
+      [
+        { marker: 'id', name: 'DOM' },
+        { marker: 'input', name: 'region', type: 'string', label: 'Region', allowed: '"EU","US"' },
+        { marker: 'output', name: 'result', type: 'string', label: 'Result' },
+      ],
+      [[null, '"APAC"', '"X"']],
+      { allowedValues: true },
+    );
+    await book(dir, 'dom.xlsx', { 'Dom DMN': rows });
+    for (const mode of ['all-inputs', 'any-inputs', 'off']) {
+      writeCfg(dir, {
+        ...ALLOWED_VALUES_LAYOUT,
+        validation: { enforceAllowedValues: true, feel: { mode } },
+      });
+      const r = cli(dir, ['dom.xlsx', '--config', CFG]);
+      expectFailNothingWritten(r, dir, 'Dom DMN!B6', 'outside the allowed values');
+    }
   });
 });
 
@@ -2267,6 +2314,19 @@ describe('L. init', OPTS, () => {
     expectFailNothingWritten(c, dir, 'no sheet', 'DMN');
   });
 
+  it('CLI-221a --sheet violating Excel sheet-name rules is rejected', () => {
+    const dir = T();
+    for (const [name, needle] of [
+      ['A'.repeat(32) + ' DMN', '31'],
+      ['Pricing/DMN', 'Pricing/DMN'],
+      ['Pricing [DMN]', 'Pricing [DMN]'],
+    ]) {
+      const r = cli(dir, ['init', '--sheet', name, '-o', 'p.xlsx']);
+      expectFail(r, needle);
+      expect(existsSync(join(dir, 'p.xlsx'))).toBe(false);
+    }
+  });
+
   it('CLI-222 --minimal drops the annotation column and example rules', async () => {
     const dir = T();
     await expectOk(cli(dir, ['init', '--minimal', '-o', 'm_DMN.xlsx']), dir);
@@ -2623,6 +2683,22 @@ describe('M. config', OPTS, () => {
     expect(r.stdout).toMatch(/overwrite\? \[y\/N\]/);
     expect(r.status, r.stdout).toBe(0);
     expect(readJson(join(dir, CWD_CFG))).toEqual(fullDefaults());
+  });
+
+  it.skipIf(!HAS_PTY)('CLI-261 the wizard reads answers that arrive together on a TTY', () => {
+    const dir = T();
+    const r = spawnSync(
+      'script',
+      ['-qec', `'${process.execPath}' '${CLI}' config -o w.json`, '/dev/null'],
+      {
+        cwd: dir,
+        input: wizardInput({ essentials: { platform: 'camunda8' } }),
+        encoding: 'utf8',
+        timeout: 30_000,
+      },
+    );
+    expect(r.status, r.stdout).toBe(0);
+    expect(readJson(join(dir, 'w.json'))).toEqual({ platform: 'camunda8' });
   });
 });
 

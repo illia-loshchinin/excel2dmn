@@ -60,7 +60,7 @@ Two sheets with the same decision id (compared after sanitising, ignoring case) 
 error, since their files would overwrite each other.
 
 **Output:** success lines and hints go to stdout; errors and warnings go to **stderr**
-(conversion warnings as `⚠ <sheet>: [<cell>] <message>`, others as `warning: …`).
+(conversion warnings as `⚠ <sheet>: [<cell>] <message>`, the `[<cell>]` part omitted when the warning has no cell, e.g. zero input columns; others as `warning: …`).
 Warnings do not change the exit code.
 
 `import` accepts DMN 1.3 only (open older DMN in a current Camunda Modeler to upgrade it)
