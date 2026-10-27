@@ -1,9 +1,13 @@
 // Stage A: parse a workbook into intermediate models (one per DMN sheet). Spec §5.
 import ExcelJS from 'exceljs';
+import { existsSync } from 'node:fs';
 import { toNcNameId, cellRef, dedupe } from './ids.js';
 import { ProblemCollector } from './errors.js';
-import { createEntryValidator, isStringLiteral } from './feel-validate.js';
+import { createEntryValidator, isStringLiteral, analyzeFeel } from './feel-validate.js';
+import { parseDomain, outOfDomain } from './domain.js';
 import { isAnyType, C8_UNSUPPORTED_HIT_POLICIES } from './config.js';
+
+const AGGREGATORS = ['SUM', 'MIN', 'MAX', 'COUNT'];
 
 function cellText(ws, row, col) {
   const cell = ws.getCell(row, col);
@@ -121,6 +125,22 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
       cellRef(ws.name, M + cfg.header.nameOffset, idCol.col),
     );
   if (outputs.length === 0) problems.add('no output column found (DMN requires ≥1 output)');
+  // DMN allows a table without inputs (every rule always matches) — legal but rarely intended.
+  if (inputs.length === 0)
+    warnings.push({ message: 'no input columns found — every rule matches unconditionally' });
+
+  // Clause ids are derived from the technical names (§6.4), so they must be unique per sheet.
+  const nameCells = new Map();
+  for (const d of [...inputs, ...outputs].sort((a, b) => a.col - b.col)) {
+    if (!d.name) continue;
+    const ref = cellRef(ws.name, M + cfg.header.nameOffset, d.col);
+    if (nameCells.has(d.name))
+      problems.add(
+        `duplicate technical name '${d.name}' (already used at ${nameCells.get(d.name)})`,
+        ref,
+      );
+    else nameCells.set(d.name, ref);
+  }
 
   for (const d of [...inputs, ...outputs]) {
     const role = inputs.includes(d) ? 'input' : 'output';
@@ -161,10 +181,19 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     policyCol && policyCol.name ? policyCol.name : cfg.hitPolicy.default
   ).toUpperCase();
   let aggregation = null;
-  if (hitPolicy === 'COLLECT' && policyCol)
-    aggregation = cellText(ws, M + cfg.hitPolicy.aggregatorOffset, policyCol.col) || null;
+  if (hitPolicy === 'COLLECT' && policyCol) {
+    const aggRow = M + cfg.hitPolicy.aggregatorOffset;
+    aggregation = cellText(ws, aggRow, policyCol.col).toUpperCase() || null;
+    if (aggregation && !AGGREGATORS.includes(aggregation))
+      problems.add(
+        `unknown COLLECT aggregator '${aggregation}' (expected ${AGGREGATORS.join(', ')})`,
+        cellRef(ws.name, aggRow, policyCol.col),
+      );
+  }
   if (!cfg.hitPolicy.allowed.map((h) => h.toUpperCase()).includes(hitPolicy))
-    problems.add(`unknown hit policy '${hitPolicy}'`);
+    problems.add(
+      `unknown hit policy '${hitPolicy}' (expected one of ${cfg.hitPolicy.allowed.join(', ')})`,
+    );
   // Camunda 8 does not implement the PRIORITY / OUTPUT ORDER hit policies.
   else if (cfg.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(hitPolicy))
     problems.add(
@@ -184,8 +213,19 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
     if (d.allowedValues) {
       const err = check(d.allowedValues, d.typeRef, 'unary');
       if (err) problems.add(`allowed values: ${err}`, cellRef(ws.name, M + avOffset, d.col));
+      else if (cfg.validation.enforceAllowedValues) d.domain = parseDomain(d.allowedValues);
     }
   }
+  /** §3.6: report entry items outside the column's declared domain (when enforced). */
+  const checkDomain = (d, role, text, unit, r) => {
+    if (!d.domain) return;
+    const bad = outOfDomain(text, d.domain, unit);
+    if (bad.length)
+      problems.add(
+        `${role} '${d.name}': ${bad.join(', ')} is outside the allowed values ${d.allowedValues}`,
+        cellRef(ws.name, r, d.col),
+      );
+  };
 
   const io = [...inputs, ...outputs];
   const startRow = M + cfg.rules.startOffset;
@@ -205,17 +245,28 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
         if (cfg.validation.feel.mode === 'any-inputs' && !isAnyType(d.typeRef, cfg)) return;
         const err = check(inputEntries[i], d.typeRef, 'unary');
         if (err) problems.add(`input '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
+        else checkDomain(d, 'input', inputEntries[i], 'unary', r);
       });
     }
     outputs.forEach((d, i) => {
-      const text = outputEntries[i];
+      let text = outputEntries[i];
       if (text === '') return;
-      const err = check(text, d.typeRef, 'expression');
-      if (err) problems.add(`output '${d.name}': ${err}`, cellRef(ws.name, r, d.col));
-      if (d.typeRef === 'string' && cfg.outputEntries.requireQuotes && !isStringLiteral(text)) {
-        if (cfg.outputEntries.autoQuote) outputEntries[i] = `"${text.replace(/^"|"$/g, '')}"`;
-        else problems.add(`output '${d.name}' must be a quoted string`, cellRef(ws.name, r, d.col));
+      const loc = cellRef(ws.name, r, d.col);
+      // §3b: a string output must be a quoted literal unless requireQuotes is off;
+      // with autoQuote a raw value is wrapped before it is validated and emitted.
+      const unquotedString = d.typeRef === 'string' && !isStringLiteral(text);
+      if (unquotedString && !cfg.outputEntries.requireQuotes) {
+        if (analyzeFeel(text, 'expression').hasError)
+          problems.add(`output '${d.name}': invalid FEEL syntax`, loc);
+        return;
       }
+      if (unquotedString && cfg.outputEntries.autoQuote)
+        text = outputEntries[i] = `"${text.replace(/^"|"$/g, '')}"`;
+      const err = check(text, d.typeRef, 'expression');
+      if (err) problems.add(`output '${d.name}': ${err}`, loc);
+      else if (d.typeRef === 'string' && !isStringLiteral(text))
+        problems.add(`output '${d.name}' must be a quoted string`, loc);
+      else checkDomain(d, 'output', text, 'expression', r);
     });
 
     const description = annotationCols
@@ -276,20 +327,46 @@ export function parseSheet(ws, cfg, seenDecisionIds) {
   };
 }
 
-export async function parseWorkbook(path, cfg, { sheet } = {}) {
+/**
+ * Parse every selected sheet independently (spec §7: atomic per sheet).
+ * @returns {Promise<Array<{sheet:string, model?:object, error?:Error}>>} one entry per sheet
+ */
+export async function parseWorkbookSheets(path, cfg, { sheet } = {}) {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(path);
-  const sheets = selectSheets(workbook, cfg, sheet);
-  if (sheets.length === 0)
-    throw new Error(`No sheet matching "${cfg.sheet.value}" found in ${path}`);
-  const seenDecisionIds = new Set();
-  const models = [];
-  for (const ws of sheets) {
-    const model = parseSheet(ws, cfg, seenDecisionIds);
-    model.__sheet = ws.name;
-    models.push(model);
+  try {
+    await workbook.xlsx.readFile(path);
+  } catch (err) {
+    // A missing file keeps its own message; anything else is an unreadable workbook.
+    if (err.code === 'ENOENT' || !existsSync(path)) throw err;
+    throw new Error(`${path} is not a valid .xlsx workbook (${err.message})`);
   }
-  return models;
+  const sheets = selectSheets(workbook, cfg, sheet);
+  if (sheets.length === 0) {
+    const wanted = sheet && sheet.length ? sheet.map((n) => `"${n}"`).join(', ') : null;
+    throw new Error(
+      wanted
+        ? `No sheet named ${wanted} matching "${cfg.sheet.value}" found in ${path}`
+        : `No sheet matching "${cfg.sheet.value}" found in ${path}`,
+    );
+  }
+  const seenDecisionIds = new Set();
+  return sheets.map((ws) => {
+    try {
+      const model = parseSheet(ws, cfg, seenDecisionIds);
+      model.__sheet = ws.name;
+      return { sheet: ws.name, model };
+    } catch (error) {
+      return { sheet: ws.name, error };
+    }
+  });
+}
+
+/** Parse all selected sheets; throws the first sheet's error if any sheet is invalid. */
+export async function parseWorkbook(path, cfg, options = {}) {
+  const parsed = await parseWorkbookSheets(path, cfg, options);
+  const failed = parsed.find((p) => p.error);
+  if (failed) throw failed.error;
+  return parsed.map((p) => p.model);
 }
 
 export { cellText };

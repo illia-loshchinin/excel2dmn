@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseWorkbook, buildDmn, reparse, loadConfig } from '../src/index.js';
+import { parseDomain, outOfDomain } from '../src/domain.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fx = (f) => join(here, 'fixtures', f);
@@ -28,5 +29,30 @@ describe('allowed values (opt-in, swapped row order)', () => {
     expect(xml).toContain('<outputValues>');
     const { warnings } = await reparse(xml);
     expect(warnings).toHaveLength(0);
+  });
+});
+
+describe('domain checks (validation.enforceAllowedValues)', () => {
+  it('judges literal scalars and numeric intervals against the domain', () => {
+    const strings = parseDomain('"EU","US"');
+    expect(outOfDomain('"EU"', strings, 'unary')).toEqual([]);
+    expect(outOfDomain('"EU","APAC"', strings, 'unary')).toEqual(['"APAC"']);
+    expect(outOfDomain('"MID"', strings, 'expression')).toEqual(['"MID"']);
+    const range = parseDomain('[0..100]');
+    expect(outOfDomain('[10..20]', range, 'unary')).toEqual([]);
+    expect(outOfDomain('[50..150]', range, 'unary')).toEqual(['[50..150]']);
+    expect(outOfDomain('101', range, 'unary')).toEqual(['101']);
+    expect(outOfDomain(']0..100]', parseDomain(']0..100]'), 'unary')).toEqual([]);
+    expect(outOfDomain('[0..100]', parseDomain(']0..100]'), 'unary')).toEqual(['[0..100]']);
+  });
+
+  it('leaves comparisons, expressions, negations and wildcards alone', () => {
+    const range = parseDomain('[0..100]');
+    for (const t of ['< 20', '-', '', 'not(500)', 'x + 1', 'f(200, 300)'])
+      expect(outOfDomain(t, range, 'unary')).toEqual([]);
+  });
+
+  it('treats a domain it cannot interpret as unenforceable', () => {
+    expect(parseDomain('< 10')).toBeNull();
   });
 });

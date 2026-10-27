@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://excel2dmn/schema/config.schema.json",
+  "title": "excel2dmn config (after merging over the defaults)",
+  "description": "Checks the shape and types of the effective config (spec §7.1). Unknown keys are allowed.",
+  "type": "object",
+  "$defs": {
+    "offset": { "type": "integer", "minimum": 0 },
+    "stringList": { "type": "array", "items": { "type": "string" } },
+    "nullableString": { "type": ["string", "null"] }
+  },
+  "properties": {
+    "sheet": {
+      "type": "object",
+      "properties": {
+        "match": { "enum": ["contains", "regex", "exact"] },
+        "value": { "type": "string" },
+        "caseInsensitive": { "type": "boolean" }
+      }
+    },
+    "header": {
+      "type": "object",
+      "properties": {
+        "scanRows": { "type": "integer", "minimum": 1 },
+        "nameOffset": { "$ref": "#/$defs/offset" },
+        "typeOffset": { "$ref": "#/$defs/offset" },
+        "labelOffset": { "$ref": "#/$defs/offset" },
+        "allowedValuesOffset": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "markers": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "input": { "type": "string" },
+        "output": { "type": "string" },
+        "policy": { "type": "string" },
+        "annotations": { "type": "string" },
+        "annotationSeparator": { "type": "string" },
+        "caseInsensitive": { "type": "boolean" }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "startOffset": { "$ref": "#/$defs/offset" },
+        "detectBy": { "type": "string" },
+        "stopOnEmptyRow": { "type": "boolean" },
+        "idTemplate": { "type": "string" },
+        "anyInputTokens": { "$ref": "#/$defs/stringList" },
+        "emitAnyInputAs": { "type": "string" }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "sanitizeId": { "type": "boolean" },
+        "idCase": { "enum": ["upper", "preserve"] },
+        "collisionSuffix": { "type": "string" }
+      }
+    },
+    "hitPolicy": {
+      "type": "object",
+      "properties": {
+        "default": { "type": "string" },
+        "allowed": { "$ref": "#/$defs/stringList" },
+        "aggregatorOffset": { "$ref": "#/$defs/offset" }
+      }
+    },
+    "types": {
+      "type": "object",
+      "properties": {
+        "anyKeyword": { "type": "string" },
+        "anyAliases": { "$ref": "#/$defs/stringList" },
+        "anyDmnPlaceholder": { "$ref": "#/$defs/nullableString" },
+        "allowed": { "$ref": "#/$defs/stringList" },
+        "numeric": { "$ref": "#/$defs/stringList" },
+        "camunda8NumericAlias": { "$ref": "#/$defs/nullableString" },
+        "camundaTypes": { "$ref": "#/$defs/stringList" },
+        "nonCamundaTypeAction": { "enum": ["error", "warn", "off"] },
+        "syntaxOnly": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "feel": {
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["all-inputs", "any-inputs", "off"] },
+            "failFast": { "type": "boolean" }
+          }
+        },
+        "enforceAllowedValues": { "type": "boolean" }
+      }
+    },
+    "outputEntries": {
+      "type": "object",
+      "properties": {
+        "requireQuotes": { "type": "boolean" },
+        "autoQuote": { "type": "boolean" }
+      }
+    },
+    "platform": { "enum": ["camunda7", "camunda8"] },
+    "camunda": {
+      "type": "object",
+      "properties": {
+        "historyTimeToLive": { "type": ["string", "integer", "null"] },
+        "versionTag": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "camunda8": {
+      "type": "object",
+      "properties": {
+        "executionPlatform": { "type": "string" },
+        "executionPlatformVersion": { "type": "string" }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "namespace": { "type": "string" },
+        "expressionLanguage": { "type": "string" },
+        "typeLanguage": { "type": "string" },
+        "namespaceStyle": { "enum": ["default", "prefixed"] },
+        "shape": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+          }
+        },
+        "format": { "type": "boolean" },
+        "outDir": { "$ref": "#/$defs/nullableString" },
+        "fileNameTemplate": { "type": "string" },
+        "writeModelJson": { "type": "boolean" }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "checks": { "$ref": "#/$defs/stringList" },
+        "failOn": { "enum": ["none", "error", "any"] },
+        "format": { "enum": ["text", "json", "junit"] },
+        "gapsMaxCombos": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

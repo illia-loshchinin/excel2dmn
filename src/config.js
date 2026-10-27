@@ -1,6 +1,7 @@
 // Config loading: built-in defaults <- excel2dmn.config.json <- --config <- CLI flags.
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import Ajv2020 from 'ajv/dist/2020.js';
 
 export const DEFAULT_CONFIG = Object.freeze({
   sheet: { match: 'contains', value: 'DMN', caseInsensitive: true },
@@ -136,6 +137,35 @@ export function deepMerge(base, override) {
   return out;
 }
 
+let validateSchema;
+/** ajv validator for schema/config.schema.json, compiled on first use. */
+function configValidator() {
+  if (!validateSchema) {
+    const schema = JSON.parse(
+      readFileSync(new URL('../schema/config.schema.json', import.meta.url), 'utf8'),
+    );
+    const Ajv = Ajv2020.default || Ajv2020;
+    validateSchema = new Ajv({ allErrors: true, allowUnionTypes: true, verbose: true }).compile(
+      schema,
+    );
+  }
+  return validateSchema;
+}
+
+/** Throw one error listing every schema violation as "<key.path> <message>" (spec §7.1). */
+function assertValidConfig(cfg, source) {
+  const validate = configValidator();
+  if (validate(cfg)) return;
+  const problems = validate.errors.map((e) => {
+    const key = e.instancePath.slice(1).replace(/\//g, '.') || 'config';
+    // ajv's enum message omits both the value and the choices; name them so the fix is obvious.
+    if (e.keyword === 'enum')
+      return `  Invalid ${key} ${JSON.stringify(e.data)} (expected one of ${e.params.allowedValues.map((v) => JSON.stringify(v)).join(', ')})`;
+    return `  ${key} ${e.message}`;
+  });
+  throw new Error(`Invalid config${source ? ` ${source}` : ''}:\n${problems.join('\n')}`);
+}
+
 /**
  * Resolve the effective config.
  * @param {object} opts
@@ -146,16 +176,21 @@ export function deepMerge(base, override) {
 export function loadConfig({ configPath, cwd = process.cwd(), overrides = {} } = {}) {
   let fileConfig = {};
   const path = configPath || resolve(cwd, 'excel2dmn.config.json');
-  if (configPath || existsSync(path)) {
+  const fromFile = Boolean(configPath || existsSync(path));
+  if (fromFile) {
     try {
-      fileConfig = JSON.parse(readFileSync(path, 'utf8'));
+      const text = readFileSync(path, 'utf8');
+      // An empty (or whitespace-only) file means "all defaults" (spec §7.1).
+      fileConfig = text.trim() ? JSON.parse(text) : {};
     } catch (err) {
       throw new Error(`Failed to read config ${path}: ${err.message}`);
     }
+    // Checked before merging: deepMerge would spread a string or null into an object.
+    if (!isObject(fileConfig))
+      throw new Error(`Invalid config ${path}:\n  config must be a JSON object`);
   }
   const merged = deepMerge(deepMerge(DEFAULT_CONFIG, fileConfig), overrides);
-  if (!['camunda7', 'camunda8'].includes(merged.platform))
-    throw new Error(`Invalid platform '${merged.platform}' (expected 'camunda7' or 'camunda8')`);
+  assertValidConfig(merged, fromFile ? path : null);
   const fallback = String(merged.hitPolicy.default).toUpperCase();
   if (merged.platform === 'camunda8' && C8_UNSUPPORTED_HIT_POLICIES.includes(fallback))
     throw new Error(

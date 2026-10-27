@@ -38,20 +38,30 @@ async function convertAction(input, opts) {
     json: opts.json,
     analyze: opts.analyze,
     validateOnly: opts.validateOnly,
+    out: opts.out ? resolve(opts.out) : undefined,
   });
-
-  if (opts.out && results.length > 1) {
-    fail(`--out is only valid for a single DMN sheet (found ${results.length}); use --out-dir`);
-  }
 
   for (const r of results) {
     console.log(
       opts.validateOnly ? `✓ ${r.sheet} → ${r.decisionId} (valid)` : `✓ ${r.sheet} → ${r.path}`,
     );
+    // Warnings (e.g. nonCamundaTypeAction "warn", zero inputs) go to stderr; stdout stays clean.
+    for (const w of r.warnings)
+      console.error(`⚠ ${r.sheet}: ${w.location ? `[${w.location}] ` : ''}${w.message}`);
     if (r.analysis) {
       const text = formatAnalysis([r.analysis], cfg.analysis.format);
       if (text && !text.startsWith('Analysis: no issues')) console.log(text);
     }
+  }
+
+  // analysis.failOn: the DMN is still written; only the exit code reflects the findings.
+  const failOn = cfg.analysis.failOn;
+  const failing = results
+    .flatMap((r) => r.analysis?.findings ?? [])
+    .filter((f) => (failOn === 'any' ? f.severity !== 'info' : f.severity === failOn));
+  if (failOn !== 'none' && failing.length) {
+    console.error(`✗ analysis: ${failing.length} finding(s) at analysis.failOn "${failOn}"`);
+    process.exitCode = 1;
   }
 
   if (problems.length) {
@@ -113,6 +123,11 @@ async function configAction(opts) {
   if (existsSync(out) && !opts.force && !(await confirmOverwrite(out))) {
     fail(`${out} exists; use --force to overwrite`);
   }
+  // The wizard needs a terminal; say so rather than silently writing the full defaults.
+  if (!opts.defaults && !process.stdin.isTTY)
+    console.error(
+      'note: stdin is not a TTY, so the interactive wizard cannot run; writing the full default config (as with --defaults)',
+    );
   const cfg = await buildConfig({
     input: process.stdin,
     output: process.stdout,
@@ -130,7 +145,7 @@ export function buildProgram() {
     .description('Convert pre-formatted Excel decision tables into Camunda 7 or 8 DMN 1.3 files.')
     .version(version);
 
-  program
+  const convertCmd = program
     .command('convert', { isDefault: true })
     .description('convert a workbook to one .dmn per DMN sheet')
     .argument('<input.xlsx>', 'the workbook to convert')
@@ -146,6 +161,17 @@ export function buildProgram() {
     .option('--validate-only', 'parse + validate; do not emit DMN')
     .option('--no-pretty', 'disable XML pretty-printing')
     .action(convertAction);
+
+  // convert is the default command, so `excel2dmn --help` lists its options too (spec §7).
+  program.addHelpText('after', () => {
+    const help = convertCmd.createHelp();
+    const options = help.visibleOptions(convertCmd).filter((o) => o.long !== '--help');
+    const width = Math.max(...options.map((o) => help.optionTerm(o).length));
+    const rows = options.map(
+      (o) => `  ${help.optionTerm(o).padEnd(width)}  ${help.optionDescription(o)}`,
+    );
+    return `\nConvert options (excel2dmn <input.xlsx> [options]):\n${rows.join('\n')}`;
+  });
 
   program
     .command('import')

@@ -28,6 +28,24 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - `excel2dmn --version` reported `0.1.0` regardless of the installed version.
+- `-o/--out` was ignored: the single-sheet result is now written to the named file, and the multi-sheet error is raised before any file is written.
+- One invalid DMN sheet no longer blocks its valid siblings: each sheet is written independently and every failing sheet is reported (exit code stays non-zero).
+- Conversion warnings (`types.nonCamundaTypeAction: "warn"`, a table with zero input columns) are now printed on stderr; zero input columns now produces a warning, as documented.
+- `outputEntries.autoQuote` and `outputEntries.requireQuotes: false` had no effect, since unquoted string outputs were rejected before either option was applied.
+- `validation.enforceAllowedValues` is now implemented: literal entries and numeric ranges outside a column's allowed values are reported with a cell coordinate.
+- An unknown `COLLECT` aggregator (anything but `SUM`/`MIN`/`MAX`/`COUNT`) is rejected, and lower-case aggregators are upper-cased, instead of producing invalid DMN.
+- Duplicate technical names among input/output columns are rejected with a header error instead of producing a DMN with duplicate element ids.
+- `excel2dmn import` lost the `COLLECT` aggregator (`SUM`/`MIN`/`MAX`/`COUNT`), so re-converting the template dropped `aggregation`; it is now written into the `policy` column at `hitPolicy.aggregatorOffset`.
+- `excel2dmn import` copied the first input's entries into every input that shares its expression (same for outputs sharing a name); entries are now placed by position.
+- `excel2dmn import` crashed on two decisions with the same name or a name with characters Excel forbids in sheet names (`: \ / ? * [ ]`), and cut long names to 31 characters after adding ` DMN`, so the sheet was no longer converted. Sheet names are now sanitised, de-duplicated and keep `DMN`.
+- `excel2dmn import` of a file without a `.dmn` extension overwrote the source with the workbook; the default output is now `<input>.xlsx` for such files.
+- The config is now validated against `schema/config.schema.json` (spec §7.1), so a wrong type such as `"header": { "labelOffset": "x" }` fails with an error naming the file and key instead of being used.
+- The config schema now checks the enumerated keys (`platform`, `sheet.match`, `identity.idCase`, `types.nonCamundaTypeAction`, `validation.feel.mode`, `output.namespaceStyle`, `analysis.failOn`, `analysis.format`); every violation is reported at once with the allowed values. An empty config file now means "all defaults" instead of a JSON parse error.
+- `analysis.failOn: "error"` / `"any"` had no effect; matching findings now make the run exit 1 (the DMN is still written).
+- `excel2dmn --help` now lists the options of the default `convert` command.
+- A file that is not an `.xlsx` workbook, `import` of malformed XML, and `--sheet` naming a missing sheet now produce errors naming the file or sheet; an unknown hit policy lists the allowed ones.
+- `excel2dmn init` folded `ß`/`Ł`/`ø`/`đ` in `--name` differently from the converter (`Straße` → `STRA_E`); it now uses the same id rules. The template gains the instructions helper cell from spec §7.2.
+- `excel2dmn config` on a non-TTY stdin now says on stderr that it wrote the full defaults instead of running the wizard.
 - README described a 5-row header and listed `number` as a type; the default
   header is 4 rows (allowed values are an opt-in fifth row) and `number` is
   rejected by default in favour of Camunda types.
