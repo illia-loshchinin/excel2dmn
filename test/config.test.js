@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { deepMerge, DEFAULT_CONFIG, loadConfig } from '../src/config.js';
 import { toNcNameId, colLetter } from '../src/ids.js';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 describe('config', () => {
   it('deep-merges overrides over defaults', () => {
@@ -18,6 +21,25 @@ describe('config', () => {
   });
   it('rejects an unknown platform value', () => {
     expect(() => loadConfig({ overrides: { platform: 'c8' } })).toThrow(/Invalid platform/);
+  });
+  it('validates the merged config against schema/config.schema.json', () => {
+    expect(() => loadConfig({ overrides: { header: { labelOffset: 'x' } } })).toThrow(
+      /header\.labelOffset must be integer/,
+    );
+    expect(() => loadConfig({ overrides: { rules: { startOffset: -1 } } })).toThrow(
+      /rules\.startOffset must be >= 0/,
+    );
+  });
+  it('reports every invalid enumerated value at once, with the allowed values', () => {
+    const bad = () => loadConfig({ overrides: { platform: 'zeebe', sheet: { match: 'fuzzy' } } });
+    expect(bad).toThrow(/Invalid platform "zeebe" \(expected one of "camunda7", "camunda8"\)/);
+    expect(bad).toThrow(/Invalid sheet\.match "fuzzy" \(expected one of "contains", "regex"/);
+  });
+  it('treats an empty config file as all defaults', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'e2d-cfg-'));
+    writeFileSync(join(dir, 'c.json'), '  \n');
+    expect(loadConfig({ configPath: join(dir, 'c.json') })).toEqual(loadConfig({ cwd: dir }));
+    rmSync(dir, { recursive: true, force: true });
   });
   it('rejects a Camunda 8 config whose fallback hit policy C8 does not support', () => {
     const c8 = (hp) =>

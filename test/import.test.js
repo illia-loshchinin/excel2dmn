@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import ExcelJS from 'exceljs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -77,6 +78,50 @@ describe('reverse importer (dmn → xlsx)', () => {
       '"EU","US"',
     );
     expect(model.decisions[0].outputs[0].allowedValues).toBe('"BRONZE","SILVER","GOLD"');
+  });
+
+  it('writes the aggregator, positional entries and safe unique sheet names', async () => {
+    const decision = (name, extra = {}) => ({
+      id: 'D',
+      name,
+      hitPolicy: 'UNIQUE',
+      aggregation: null,
+      inputs: [
+        { expression: 'amount', typeRef: 'integer' },
+        { expression: 'amount', typeRef: 'integer' },
+      ],
+      outputs: [{ name: 'fee', typeRef: 'integer' }],
+      rules: [
+        { seq: 1, id: 'rule_1', row: 5, inputEntries: ['>= 10', '< 100'], outputEntries: ['1'] },
+      ],
+      ...extra,
+    });
+    const models = [
+      decision('Rates: EU/US [v2]?*', { hitPolicy: 'COLLECT', aggregation: 'SUM' }),
+      decision('Rules'),
+      decision('rules'),
+      decision('Very Long Shipping Rate Decision Name 2026'),
+    ].map((d) => ({
+      definitions: { id: 'defs', name: 'defs', namespace: 'urn:x' },
+      decisions: [d],
+    }));
+    const out = join(tmpdir(), `e2d-import-names-${process.pid}.xlsx`);
+    try {
+      await modelsToWorkbook(models, cfg, out);
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.readFile(out);
+      expect(wb.worksheets.map((ws) => ws.name)).toEqual([
+        'Rates_ EU_US _v2___ DMN',
+        'Rules DMN',
+        'rules DMN 2',
+        'Very Long Shipping Rate Dec DMN',
+      ]);
+      const ws = wb.worksheets[0];
+      expect(ws.getCell(3, 1).value).toBe('SUM'); // policy column, M + aggregatorOffset
+      expect([ws.getCell(5, 4).value, ws.getCell(5, 5).value]).toEqual(['>= 10', '< 100']);
+    } finally {
+      rmSync(out, { force: true });
+    }
   });
 });
 

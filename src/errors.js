@@ -32,3 +32,19 @@ export class ProblemCollector {
     if (this.hasErrors) throw new ConversionError(this.problems, summary);
   }
 }
+
+const READ_REASONS = {
+  ENOENT: 'no such file or directory',
+  EISDIR: 'it is a directory, not a file',
+  EACCES: 'permission denied',
+  EPERM: 'permission denied',
+};
+
+/**
+ * A file-system read error that names the path (Node's EISDIR message does not).
+ * Returns null for errors that are not about reading the file.
+ */
+export function readError(path, err) {
+  const reason = READ_REASONS[err?.code];
+  return reason ? new Error(`Cannot read ${path}: ${reason}`) : null;
+}

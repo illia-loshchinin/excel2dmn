@@ -9,6 +9,7 @@ import { writeTemplate } from './init-template.js';
 import { buildConfig, serializeConfig } from './init-config.js';
 import { formatAnalysis } from './analyze.js';
 import { ConversionError } from './errors.js';
+import { sheetMatches } from './excel-to-json.js';
 
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
@@ -38,20 +39,30 @@ async function convertAction(input, opts) {
     json: opts.json,
     analyze: opts.analyze,
     validateOnly: opts.validateOnly,
+    out: opts.out ? resolve(opts.out) : undefined,
   });
-
-  if (opts.out && results.length > 1) {
-    fail(`--out is only valid for a single DMN sheet (found ${results.length}); use --out-dir`);
-  }
 
   for (const r of results) {
     console.log(
       opts.validateOnly ? `✓ ${r.sheet} → ${r.decisionId} (valid)` : `✓ ${r.sheet} → ${r.path}`,
     );
+    // Warnings (e.g. nonCamundaTypeAction "warn", zero inputs) go to stderr; stdout stays clean.
+    for (const w of r.warnings)
+      console.error(`⚠ ${r.sheet}: ${w.location ? `[${w.location}] ` : ''}${w.message}`);
     if (r.analysis) {
       const text = formatAnalysis([r.analysis], cfg.analysis.format);
       if (text && !text.startsWith('Analysis: no issues')) console.log(text);
     }
+  }
+
+  // analysis.failOn: the DMN is still written; only the exit code reflects the findings.
+  const failOn = cfg.analysis.failOn;
+  const failing = results
+    .flatMap((r) => r.analysis?.findings ?? [])
+    .filter((f) => (failOn === 'any' ? f.severity !== 'info' : f.severity === failOn));
+  if (failOn !== 'none' && failing.length) {
+    console.error(`✗ analysis: ${failing.length} finding(s) at analysis.failOn "${failOn}"`);
+    process.exitCode = 1;
   }
 
   if (problems.length) {
@@ -72,8 +83,15 @@ export function shellQuote(s) {
 async function importAction(input, opts) {
   const cfg = loadConfig({ configPath: opts.config });
   const out = opts.out ? resolve(opts.out) : undefined;
-  const { path, models, platform } = await importDmn(resolve(input), { config: cfg, out });
+  const { path, models, platform, layoutUpgraded } = await importDmn(resolve(input), {
+    config: cfg,
+    out,
+  });
   console.log(`✓ imported ${models.length} decision(s) → ${path}`);
+  if (layoutUpgraded)
+    console.log(
+      '  ℹ the DMN has allowed values, so the template uses the 5-row header; to convert it back, set "header": { "allowedValuesOffset": 3, "labelOffset": 4 } and "rules": { "startOffset": 5 } in your config',
+    );
   if (platform === 'camunda8') {
     console.log(
       `  ℹ detected Camunda 8 — re-convert with: excel2dmn ${shellQuote(path)} --platform camunda8`,
@@ -89,7 +107,20 @@ async function importAction(input, opts) {
 
 async function initAction(opts) {
   const cfg = loadConfig({ configPath: opts.config });
-  const out = await writeTemplate(resolve(opts.out), cfg, {
+  const target = resolve(opts.out);
+  // The existing file is likely a filled-in template; never replace it silently.
+  if (existsSync(target) && !opts.force) fail(`${target} exists; use --force to overwrite`);
+  if (opts.sheet && opts.sheet.length > 31)
+    fail(`sheet name "${opts.sheet}" is longer than 31 characters (Excel's sheet-name limit)`);
+  if (opts.sheet && /[:\\/?*[\]]/.test(opts.sheet))
+    fail(
+      `sheet name "${opts.sheet}" contains a character Excel does not allow in sheet names (: \\ / ? * [ ])`,
+    );
+  if (opts.sheet && !sheetMatches(opts.sheet, cfg))
+    console.error(
+      `warning: sheet "${opts.sheet}" does not match the sheet config (${cfg.sheet.match} "${cfg.sheet.value}"), so converting this workbook will not select it${cfg.sheet.match === 'contains' ? `; include "${cfg.sheet.value}" in the sheet name` : ''}`,
+    );
+  const out = await writeTemplate(target, cfg, {
     name: opts.name,
     sheetName: opts.sheet,
     minimal: opts.minimal,
@@ -97,30 +128,49 @@ async function initAction(opts) {
   console.log(`✓ wrote template ${out}`);
 }
 
-async function confirmOverwrite(path) {
-  if (!process.stdin.isTTY) return false;
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    const ans = await rl.question(`${path} already exists — overwrite? [y/N] `);
-    return /^(y|yes)$/i.test(ans.trim());
-  } finally {
-    rl.close();
-  }
+async function confirmOverwrite(path, ask) {
+  if (!ask) return false;
+  const ans = await ask(`${path} already exists — overwrite? [y/N] `);
+  return /^(y|yes)$/i.test(ans.trim());
 }
 
 async function configAction(opts) {
   const out = resolve(opts.out);
-  if (existsSync(out) && !opts.force && !(await confirmOverwrite(out))) {
-    fail(`${out} exists; use --force to overwrite`);
+  // One readline interface (and line iterator) serves the overwrite question and the wizard, so
+  // answers that arrive together (paste, piped into a pty) are not lost between the two.
+  const rl = process.stdin.isTTY
+    ? createInterface({ input: process.stdin, output: process.stdout })
+    : null;
+  try {
+    const lines = rl ? rl[Symbol.asyncIterator]() : null;
+    const ask = rl
+      ? async (q) => {
+          process.stdout.write(q);
+          const { value, done } = await lines.next();
+          if (done) throw new Error('aborted: input ended before the config wizard finished');
+          return value;
+        }
+      : undefined;
+    if (existsSync(out) && !opts.force && !(await confirmOverwrite(out, ask))) {
+      fail(`${out} exists; use --force to overwrite`);
+    }
+    // The wizard needs a terminal; say so rather than silently writing the full defaults.
+    if (!opts.defaults && !process.stdin.isTTY)
+      console.error(
+        'note: stdin is not a TTY, so the interactive wizard cannot run; writing the full default config (as with --defaults)',
+      );
+    const cfg = await buildConfig({
+      input: process.stdin,
+      output: process.stdout,
+      defaults: opts.defaults,
+      full: opts.full,
+      prompt: opts.defaults ? undefined : ask,
+    });
+    writeFileSync(out, serializeConfig(cfg), 'utf8');
+    console.log(`✓ wrote config ${out}`);
+  } finally {
+    rl?.close();
   }
-  const cfg = await buildConfig({
-    input: process.stdin,
-    output: process.stdout,
-    defaults: opts.defaults,
-    full: opts.full,
-  });
-  writeFileSync(out, serializeConfig(cfg), 'utf8');
-  console.log(`✓ wrote config ${out}`);
 }
 
 export function buildProgram() {
@@ -130,7 +180,7 @@ export function buildProgram() {
     .description('Convert pre-formatted Excel decision tables into Camunda 7 or 8 DMN 1.3 files.')
     .version(version);
 
-  program
+  const convertCmd = program
     .command('convert', { isDefault: true })
     .description('convert a workbook to one .dmn per DMN sheet')
     .argument('<input.xlsx>', 'the workbook to convert')
@@ -146,6 +196,17 @@ export function buildProgram() {
     .option('--validate-only', 'parse + validate; do not emit DMN')
     .option('--no-pretty', 'disable XML pretty-printing')
     .action(convertAction);
+
+  // convert is the default command, so `excel2dmn --help` lists its options too (spec §7).
+  program.addHelpText('after', () => {
+    const help = convertCmd.createHelp();
+    const options = help.visibleOptions(convertCmd).filter((o) => o.long !== '--help');
+    const width = Math.max(...options.map((o) => help.optionTerm(o).length));
+    const rows = options.map(
+      (o) => `  ${help.optionTerm(o).padEnd(width)}  ${help.optionDescription(o)}`,
+    );
+    return `\nConvert options (excel2dmn <input.xlsx> [options]):\n${rows.join('\n')}`;
+  });
 
   program
     .command('import')
@@ -163,6 +224,7 @@ export function buildProgram() {
     .option('--sheet <name>', 'sheet name')
     .option('--config <file>', 'config JSON file')
     .option('--minimal', 'skip example rules / annotation column')
+    .option('--force', 'overwrite an existing file')
     .action(initAction);
 
   program
