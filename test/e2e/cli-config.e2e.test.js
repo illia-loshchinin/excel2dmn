@@ -12,6 +12,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import ExcelJS from 'exceljs';
@@ -658,7 +659,7 @@ describe('C. Output location: --out-dir, --out, fileNameTemplate', OPTS, () => {
     await writeW1(dir);
     writeCfg(dir, { output: { fileNameTemplate: '' } });
     const r = cli(dir, ['one_DMN.xlsx', '--config', CFG]);
-    expectFail(r, 'output.fileNameTemplate');
+    expectFail(r, 'output.fileNameTemplate', /invalid config/i, 'fewer than 1');
     expect(dmnFiles(dir)).toEqual([]);
   });
 
@@ -667,7 +668,7 @@ describe('C. Output location: --out-dir, --out, fileNameTemplate', OPTS, () => {
     await writeW1(dir);
     writeCfg(dir, { output: { fileNameTemplate: '.' } });
     const r = cli(dir, ['one_DMN.xlsx', '--config', CFG]);
-    expectFail(r, 'Rates DMN');
+    expectFail(r, 'Rates DMN', 'outside the output directory');
     expect(dmnFiles(dir)).toEqual([]);
   });
 
@@ -1141,6 +1142,29 @@ describe('G. Multi-sheet workbooks', OPTS, () => {
     const path = await writeW1(dir, 'x.xlsx');
     const before = readFileSync(path);
     const r = cli(dir, ['x.xlsx', '-o', 'x.xlsx']);
+    expectFail(r, 'input workbook');
+    expect(readFileSync(path).equals(before)).toBe(true);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'CLI-088e an output path that is a symlink to the input workbook is refused',
+    async () => {
+      const dir = T();
+      const path = await writeW1(dir, 'x.xlsx');
+      const before = readFileSync(path);
+      symlinkSync(path, join(dir, 'link.dmn'));
+      const r = cli(dir, ['x.xlsx', '-o', 'link.dmn']);
+      expectFail(r, 'input workbook');
+      expect(readFileSync(path).equals(before)).toBe(true);
+    },
+  );
+
+  it('CLI-088f --validate-only refuses an output path equal to the input workbook', async () => {
+    const dir = T();
+    const path = await writeW1(dir, 'x.xlsx');
+    const before = readFileSync(path);
+    writeCfg(dir, { output: { fileNameTemplate: 'x.xlsx' } });
+    const r = cli(dir, ['x.xlsx', '--config', CFG, '--validate-only']);
     expectFail(r, 'input workbook');
     expect(readFileSync(path).equals(before)).toBe(true);
   });
@@ -2870,6 +2894,19 @@ describe('N. import basics', OPTS, () => {
     expectFail(r, 'overwrite the input');
     expect(readFileSync(dmn).equals(before)).toBe(true);
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'CLI-279b import refuses an -o that is a symlink to its input DMN',
+    async () => {
+      const dir = T();
+      const dmn = await ratesDmn(dir);
+      const before = readFileSync(dmn);
+      symlinkSync(dmn, join(dir, 'link.xlsx'));
+      const r = cli(dir, ['import', 'RATES.dmn', '-o', 'link.xlsx']);
+      expectFail(r, 'overwrite the input');
+      expect(readFileSync(dmn).equals(before)).toBe(true);
+    },
+  );
 
   it('CLI-279 import of malformed XML', () => {
     const dir = T();

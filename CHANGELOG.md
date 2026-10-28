@@ -45,7 +45,7 @@ project adheres to [Semantic Versioning](https://semver.org/).
 - Read errors for the input of convert and import name the path (`Cannot read <path>: it is a directory, not a file` instead of a bare `EISDIR` or "not a valid .xlsx workbook").
 - `excel2dmn config` answers to the overwrite question and the wizard no longer lose each other's lines when they arrive together (one shared input reader).
 - `--validate-only` now reports output-path collisions and out-of-directory paths, as a real run would.
-- convert refuses to overwrite its input workbook (`-o x.xlsx`, or a template resolving to it), and `import -o` refuses to overwrite the input DMN.
+- convert refuses to overwrite its input workbook (`-o x.xlsx`, or a template resolving to it; also through a symlink, hard link or case-variant path, and under `--validate-only`), and `import -o` refuses to overwrite the input DMN (also through a link).
 - `excel2dmn import` of a DMN 1.1/1.2 (or 1.4/1.5) file is rejected with a message naming the DMN version, instead of a confusing "no decision table" error.
 - An `excel2dmn import` write error names the output path.
 - `excel2dmn --version` reported `0.1.0` regardless of the installed version.

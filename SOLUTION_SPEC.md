@@ -548,7 +548,7 @@ excel2dmn <input.xlsx> [options]     # convert (default command)
       --hit-policy <p>      fallback hit policy (default UNIQUE)
       --namespace <uri>     definitions target namespace
       --analyze             run static analysis (overlap/gaps/duplicates, §16)
-      --validate-only       parse + schema-validate all sheets, do not emit DMN
+      --validate-only       parse + validate all sheets and check output paths; do not emit DMN
       --no-pretty           disable XML pretty-printing (output.format: false)
 
 excel2dmn init [options]             # write a starter template workbook (§7.2)
@@ -556,7 +556,7 @@ excel2dmn init [options]             # write a starter template workbook (§7.2)
 
 **Output channels.** stdout carries one success line per written sheet (`✓ <sheet> → <path>`), import/init/config success lines, `ℹ` hints and the analysis report. **stderr** carries everything else: errors (`error: …`, `✗ <sheet>:` blocks with `[Sheet!Cell]` problems), and **warnings**, one per line, as `⚠ <sheet>: [<Sheet!Cell>] <message>` for conversion warnings (the `[<Sheet!Cell>]` part is omitted when the warning has no cell, e.g. zero input columns) (`types.nonCamundaTypeAction: "warn"`, a table with zero input columns) or `warning: <message>` for CLI/config warnings (unknown config keys, an `init --sheet` name the converter will not select). Warnings never change the exit code; `analysis.failOn` does. Read errors for the input file name its path (`error: Cannot read <path>: it is a directory, not a file`, `error: Cannot read <path>: no such file or directory`, `error: Cannot read <path>: permission denied`).
 
-**Output filenames (one per DMN sheet).** Each `.dmn` is named from that sheet's decision id via `output.fileNameTemplate` (default `"<decisionId>.dmn"`, e.g. `SHIPPING_RATES.dmn`, `RETURNS.dmn`), written into `--out-dir`. `--out <file>` is a convenience for the single-sheet case and errors when 2+ sheets match. Files are emitted **atomically per sheet** — a validation error in sheet B does not delete sheet A's already-written output, but the process still exits non-zero and reports every failing sheet.
+**Output filenames (one per DMN sheet).** Each `.dmn` is named from that sheet's decision id via `output.fileNameTemplate` (default `"<decisionId>.dmn"`, e.g. `SHIPPING_RATES.dmn`, `RETURNS.dmn`), written into `--out-dir`. `--out <file>` is a convenience for the single-sheet case and errors when 2+ sheets match. Files are emitted **atomically per sheet** — a validation error in sheet B does not delete sheet A's already-written output, but the process still exits non-zero and reports every failing sheet. An output path (from `--out` or `output.fileNameTemplate`) that resolves to the input workbook — also through a link — is refused for that sheet.
 
 ### 7.1 Config file — `excel2dmn.config.json`
 
@@ -744,6 +744,7 @@ excel2dmn import <input.dmn> [-o <file.xlsx>] [--config <file>]
 - Writes `<input>.xlsx` beside the source (or `-o`), **creating missing parent directories** like convert does, and overwriting an existing workbook.
 - Only **DMN 1.3** is accepted. A root `<definitions>` in the DMN 1.1 (`…/DMN/20151101/dmn.xsd`), 1.2 (`…/DMN/20180521/MODEL/`), 1.4 or 1.5 MODEL namespace is rejected with `Cannot import <path>: this is a DMN 1.x file (namespace …), not DMN 1.3` — open and save it in a current Camunda Modeler to upgrade it.
 - When the DMN carries allowed values (`<inputValues>`/`<outputValues>`) but the config has no allowed-values row, the template switches to the 5-row layout so nothing is lost, and stdout prints a hint naming the config needed to convert it back: `header.allowedValuesOffset 3`, `header.labelOffset 4`, `rules.startOffset 5`.
+- `-o` resolving to the input DMN (also through a link) is refused: `Cannot import <path>: the output would overwrite the input DMN — choose another -o`.
 - A Camunda 8 source prints a hint to re-convert with `--platform camunda8` (§6.6).
 - Read and write errors name the path.
 

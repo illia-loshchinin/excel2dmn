@@ -333,14 +333,14 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 
 - **Given** W1, config `{ "output": { "fileNameTemplate": "" } }`.
 - **When** convert.
-- **Then** exit `1`; stderr mentions `output.fileNameTemplate`; nothing written.
+- **Then** exit `1`; stderr mentions `output.fileNameTemplate`, `invalid config` and `fewer than 1`; nothing written.
 - **Source** spec §7.1 `output.fileNameTemplate`.
 
 ### CLI-043c: a `"."` `output.fileNameTemplate` is a per-sheet error
 
 - **Given** W1, config `{ "output": { "fileNameTemplate": "." } }`.
 - **When** convert.
-- **Then** exit `1`; stderr names the sheet `Rates DMN`; nothing written.
+- **Then** exit `1`; stderr names the sheet `Rates DMN` and says `outside the output directory`; nothing written.
 - **Source** **spec silent**; the template must name a file inside the output directory.
 
 ### CLI-043d: a thrown CLI error carries the `error: ` prefix
@@ -618,6 +618,20 @@ Rows 5 and 6 overlap (both match `region = "EU", amount = 10`); row 7 overlaps n
 - **When** `excel2dmn x.xlsx -o x.xlsx`.
 - **Then** exit `1`; stderr says the output path is the input workbook; `x.xlsx` is byte-identical.
 - **Source** **spec silent**; the input must never be overwritten.
+
+### CLI-088e: an output path that is a symlink to the input workbook is refused
+
+- **Given** W1 at `T/x.xlsx` and a symlink `T/link.dmn` to it (skipped on Windows).
+- **When** `excel2dmn x.xlsx -o link.dmn`.
+- **Then** exit `1`; stderr says the output path is the input workbook; `x.xlsx` is byte-identical.
+- **Source** **spec silent**; the input must never be overwritten, also through a link.
+
+### CLI-088f: `--validate-only` refuses an output path equal to the input workbook
+
+- **Given** W1 at `T/x.xlsx`, config `{ "output": { "fileNameTemplate": "x.xlsx" } }`.
+- **When** `excel2dmn x.xlsx --config … --validate-only`.
+- **Then** exit `1`; stderr says the output path is the input workbook; `x.xlsx` is byte-identical.
+- **Source** spec §7 (`--validate-only` must predict what a real run rejects).
 
 ### CLI-089: sheets with the same name prefix are independent
 
@@ -1655,6 +1669,13 @@ and the rule ids, not on full sentences.
 - **When** `excel2dmn import RATES.dmn -o RATES.dmn`.
 - **Then** exit `1`; stderr says the output would overwrite the input DMN; `RATES.dmn` is byte-identical.
 - **Source** **spec silent**; the input must never be overwritten.
+
+### CLI-279b: import refuses an `-o` that is a symlink to its input DMN
+
+- **Given** `T/RATES.dmn` produced from W1 and a symlink `T/link.xlsx` to it (skipped on Windows).
+- **When** `excel2dmn import RATES.dmn -o link.xlsx`.
+- **Then** exit `1`; stderr says the output would overwrite the input DMN; `RATES.dmn` is byte-identical.
+- **Source** **spec silent**; the input must never be overwritten, also through a link.
 
 ### CLI-279: import of malformed XML
 

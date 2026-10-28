@@ -1,5 +1,5 @@
 // Public API: parseWorkbook, buildDmn, convert. Spec §5–§6.
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join, basename, extname, relative, isAbsolute, resolve, sep } from 'node:path';
 import { loadConfig, deepMerge } from './config.js';
 import { parseWorkbookSheets } from './excel-to-json.js';
@@ -34,6 +34,26 @@ function outputPath(model, inputPath, cfg) {
   return path;
 }
 
+/** Whether two paths name the same file (also through links or a case-insensitive file system). */
+function sameFile(a, b) {
+  if (resolve(a) === resolve(b)) return true;
+  try {
+    const s = statSync(a);
+    const t = statSync(b);
+    return s.dev === t.dev && s.ino === t.ino;
+  } catch {
+    return false;
+  }
+}
+
+/** The .model.json path written next to a DMN path, or null when JSON output is off. */
+function jsonPathFor(dmnPath, cfg, options) {
+  if (!(cfg.output.writeModelJson || options.json)) return null;
+  return /\.dmn$/i.test(dmnPath)
+    ? dmnPath.replace(/\.dmn$/i, '.model.json')
+    : `${dmnPath}.model.json`;
+}
+
 /**
  * Convert a workbook to one DMN file per DMN sheet. Sheets are independent: an invalid
  * sheet is reported in `problems` without blocking its valid siblings (spec §7).
@@ -50,6 +70,18 @@ export async function convert(inputPath, options = {}) {
       `--out is only valid for a single DMN sheet (found ${parsed.length}); use --out-dir`,
     );
 
+  // An output (or its .model.json) that is the input workbook would destroy it.
+  const assertNotInput = (dmnPath) => {
+    for (const p of [dmnPath, jsonPathFor(dmnPath, cfg, options)])
+      if (p && sameFile(p, inputPath))
+        throw new Error(
+          `output path ${p} is the input workbook — choose another --out / output.fileNameTemplate`,
+        );
+  };
+
+  // --out names one file for the single sheet; checked before anything else (also for --validate-only).
+  if (options.out && options.write !== false) assertNotInput(options.out);
+
   const results = [];
   const problems = parsed.filter((p) => p.error).map(({ sheet, error }) => ({ sheet, error }));
 
@@ -61,6 +93,7 @@ export async function convert(inputPath, options = {}) {
     for (const { model } of parsed.filter((p) => p.model)) {
       try {
         const path = outputPath(model, inputPath, cfg);
+        assertNotInput(path);
         paths.set(model, path);
         const key = resolve(path).toLowerCase();
         byPath.set(key, [...(byPath.get(key) || []), model]);
@@ -83,7 +116,6 @@ export async function convert(inputPath, options = {}) {
       }
     }
   }
-  const inputResolved = resolve(inputPath);
   for (const { model } of parsed.filter((p) => p.model && !colliding.has(p.model))) {
     try {
       const analysis = cfg.analysis.enabled || options.analyze ? analyzeModel(model, cfg) : null;
@@ -99,17 +131,7 @@ export async function convert(inputPath, options = {}) {
         result.xml = xml;
         if (options.write !== false) {
           const dmnPath = options.out || paths.get(model) || outputPath(model, inputPath, cfg);
-          const jsonPath =
-            cfg.output.writeModelJson || options.json
-              ? /\.dmn$/i.test(dmnPath)
-                ? dmnPath.replace(/\.dmn$/i, '.model.json')
-                : `${dmnPath}.model.json`
-              : null;
-          for (const p of [dmnPath, jsonPath])
-            if (p && resolve(p) === inputResolved)
-              throw new Error(
-                `output path ${p} is the input workbook — choose another --out / output.fileNameTemplate`,
-              );
+          const jsonPath = jsonPathFor(dmnPath, cfg, options);
           mkdirSync(dirname(dmnPath), { recursive: true });
           writeFileSync(dmnPath, xml, 'utf8');
           result.path = dmnPath;
@@ -205,7 +227,7 @@ export async function importDmn(dmnPath, options = {}) {
         : `${dmnPath}.xlsx`
       : 'decision_DMN.xlsx');
   if (options.write !== false) {
-    if (dmnPath && resolve(out) === resolve(dmnPath))
+    if (dmnPath && sameFile(out, dmnPath))
       throw new Error(
         `Cannot import ${dmnPath}: the output would overwrite the input DMN — choose another -o`,
       );
