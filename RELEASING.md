@@ -4,7 +4,8 @@
 version tag (`v*`) triggers the [`release.yml`](.github/workflows/release.yml)
 workflow, which runs the tests and publishes to npm over **OIDC Trusted
 Publishing** — no tokens are stored anywhere, and each release gets a signed
-**provenance** attestation.
+**provenance** attestation. It also creates the GitHub Release, with the package
+tarball and its [SLSA](https://slsa.dev/) Build L3 provenance attached.
 
 ## TL;DR
 
@@ -21,7 +22,8 @@ git push --follow-tags
 ```
 
 The tag push starts the Release workflow. Watch it under the repo's **Actions**
-tab; a green check means the new version is live on npm.
+tab; a green check means the new version is live on npm and its GitHub Release
+exists.
 
 ## Choosing the bump
 
@@ -39,7 +41,7 @@ step, so the tag and the published version always match.
 
 ## What the Release workflow does
 
-Triggered by a `v*` tag, on a fresh Ubuntu runner:
+Triggered by a `v*` tag. The **build** job runs on a fresh Ubuntu runner:
 
 1. **Checkout** the repo at the tagged commit.
 2. **Setup Node 22** pointed at the public npm registry.
@@ -47,12 +49,25 @@ Triggered by a `v*` tag, on a fresh Ubuntu runner:
 4. **`npm ci`** — clean, exact install from `package-lock.json`.
 5. **`npm run lint && npm test`** — if either fails, the job stops and nothing
    is published. This is the safety gate.
-   (`npm publish` also runs `prepublishOnly`, which repeats lint and tests and
-   generates `THIRD-PARTY-NOTICES.txt` for the package.)
-6. **`npm publish --access public`** — publishes to npm. The runner's OIDC
-   identity is verified against the package's Trusted Publisher config, and a
-   provenance attestation is generated automatically (`publishConfig.provenance`
-   is `true` in `package.json`).
+6. **`npm run licenses:notices`, then `npm pack`** — builds
+   `excel2dmn-X.Y.Z.tgz` with `THIRD-PARTY-NOTICES.txt` inside. (Publishing a
+   tarball skips `prepublishOnly`, so the notices are generated here.)
+7. **`npm publish ./excel2dmn-X.Y.Z.tgz --access public`** — publishes that
+   exact tarball to npm. The runner's OIDC identity is verified against the
+   package's Trusted Publisher config, and an npm provenance attestation is
+   generated automatically (`publishConfig.provenance` is `true` in
+   `package.json`).
+
+Then:
+
+- **release** — creates the GitHub Release for the tag (title = tag, notes
+  generated from merged PRs) if it doesn't exist yet, and uploads the tarball.
+- **provenance** — the official
+  [`slsa-github-generator`](https://github.com/slsa-framework/slsa-github-generator)
+  signs SLSA Build L3 provenance for the tarball and uploads it to the release
+  as `excel2dmn-X.Y.Z.tgz.intoto.jsonl`. This is what the OpenSSF Scorecard
+  **Signed-Releases** check looks for. The generator is referenced by tag
+  (`@v2.1.0`), not by commit SHA, because it verifies its own ref.
 
 ## Before you tag: checklist
 
@@ -72,6 +87,30 @@ Triggered by a `v*` tag, on a fresh Ubuntu runner:
 - **npm:** <https://www.npmjs.com/package/excel2dmn> shows the new version with a
   green **Provenance** check.
 - **Install test:** `npx excel2dmn@latest --help`.
+- **GitHub Release:** has `excel2dmn-X.Y.Z.tgz` and
+  `excel2dmn-X.Y.Z.tgz.intoto.jsonl` attached. To verify the provenance, download
+  both and run
+  [`slsa-verifier`](https://github.com/slsa-framework/slsa-verifier):
+
+  ```bash
+  slsa-verifier verify-artifact excel2dmn-X.Y.Z.tgz \
+    --provenance-path excel2dmn-X.Y.Z.tgz.intoto.jsonl \
+    --source-uri github.com/illia-loshchinin/excel2dmn \
+    --source-tag vX.Y.Z
+  ```
+
+## Adding provenance to an existing release
+
+For a release published before provenance existed (e.g. `v1.0.0`), run the
+Release workflow by hand: **Actions → Release → Run workflow**, enter the tag
+(e.g. `v1.0.0`). It checks out that tag, runs lint and tests, packs the tarball
+and attaches it plus its provenance to the existing release. It **never
+publishes to npm**, and the tarball is rebuilt from the tag, so it may differ
+byte-for-byte from the one npm already holds.
+
+Because a manual run is started from `main`, its provenance names the `main`
+branch as the build ref rather than the tag; verify it with
+`--source-branch main` instead of `--source-tag`.
 
 ## Notes & gotchas
 

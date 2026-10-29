@@ -2,15 +2,36 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Backfill: attach the tarball and SLSA provenance to an existing release
+  # (e.g. one published before provenance existed). Never publishes to npm.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, e.g. v1.0.0
+        required: true
 permissions:
   contents: read
-  id-token: write # for npm provenance
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for npm provenance
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]] || { echo "not a release tag: $tag"; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -18,5 +39,50 @@ jobs:
       - run: npm install -g npm@latest # trusted publishing requires npm >= 11.5.1
       - run: npm ci
       - run: npm run lint && npm test
+      # Publishing a tarball skips prepublishOnly, so generate its notices file here.
+      - run: npm run licenses:notices
+      - run: npm pack
       # OIDC trusted publishing: no token needed, provenance is generated automatically.
-      - run: npm publish --access public
+      # Publishing the packed tarball keeps the npm package byte-identical to the release asset.
+      - if: github.event_name == 'push'
+        run: npm publish ./excel2dmn-*.tgz --access public
+      - id: hash
+        run: echo "hashes=$(sha256sum excel2dmn-*.tgz | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: excel2dmn-*.tgz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and upload the tarball
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          gh release upload "$TAG" excel2dmn-*.tgz --clobber
+
+  # SLSA Build L3 provenance for the tarball, uploaded to the release as
+  # <name>.intoto.jsonl (what the Scorecard Signed-Releases check looks for).
+  # The generator must be referenced by tag, not SHA: it verifies its own ref.
+  provenance:
+    needs: [build, release]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.hashes }}
+      upload-assets: true
+      upload-tag-name: ${{ needs.build.outputs.tag }}
