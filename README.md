@@ -7,83 +7,161 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/illia-loshchinin/excel2dmn/badge)](https://securityscorecards.dev/viewer/?uri=github.com/illia-loshchinin/excel2dmn)
 [![Provenance](https://img.shields.io/badge/npm-provenance-brightgreen)](https://docs.npmjs.com/generating-provenance-statements)
 
-Convert pre-formatted **Excel decision tables** into **Camunda 7 or Camunda 8 DMN 1.3** files — one `.dmn` per sheet, ready to import into the Camunda Modeler / Web Modeler.
+**The business rules are already in Excel. Now the DMN can be too.**
 
-- Marker-driven, position-independent parsing (no fixed rows/columns)
+`excel2dmn` converts pre-formatted Excel workbooks into production-ready **DMN 1.3** decision
+tables, and turns existing `.dmn` files back into editable Excel. Works with **Camunda 7**,
+**Camunda 8**, and any DMN 1.3-compatible engine.
+
+---
+
+## The Problem
+
+Large decision tables — pricing tiers, eligibility matrices, routing logic — are owned and
+maintained by business analysts, and they live in Excel. Getting those rules into a BPM engine has
+traditionally required a handoff: the analyst writes the logic in Excel, a developer re-enters it
+into a modeler, and both sides try to stay in sync. The larger the table, the worse this gets — a
+200-row decision table becomes a recurring, error-prone, multi-day exercise. The Excel and the
+deployed DMN drift apart.
+
+`excel2dmn` removes the handoff. The **workbook is the source**. Analysts write rules in Excel
+using a simple header convention; one command produces a deployment-ready `.dmn`. No copy-paste,
+no re-typing, no drift. A 300-row table takes the same command as a 10-row one.
+
+---
+
+## Features
+
+- Marker-driven, position-independent parsing — no fixed rows or columns
 - One workbook → **one `.dmn` per `DMN` sheet**
-- Type-aware **FEEL validation** with precise `Sheet!Cell` errors
-- **Allowed values** (`inputValues`/`outputValues`), **hit policies**, **annotations** (as `<description>`)
-- **Camunda 7** (default) `historyTimeToLive` / `versionTag`, or **Camunda 8** (`--platform camunda8`) modeler execution-platform metadata
-- **Readable, deterministic ids** → clean diffs and byte-stable output
-- Static **analysis**: overlap / duplicate / shadowed / gap detection
+- **Camunda 7** (default) and **Camunda 8** output (`--platform camunda8`); compatible with any
+  **DMN 1.3** engine
+- Type-aware **FEEL validation** with precise `Sheet!Cell` error reporting
+- **Allowed values**, **hit policies**, **annotations**
+- **Readable, deterministic IDs** — clean diffs and byte-stable output
+- Static **analysis**: overlap, duplicate, shadowed, and gap detection
 - `excel2dmn init` scaffolds a ready-to-fill template
-- **Reverse import** (`excel2dmn import`): existing `.dmn` → `.xlsx` (round-trips byte-identically)
+- **Reverse import** (`excel2dmn import`): existing `.dmn` → `.xlsx`
+
+---
 
 ## Install
 
 Requires Node.js 20.12 or newer.
 
 ```bash
-npm install -g excel2dmn        # or run without installing: npx excel2dmn <file.xlsx>
+npm install -g excel2dmn
+# or run without installing:
+npx excel2dmn rules.xlsx
 ```
 
-## Usage
+---
+
+## Quickstart
 
 ```bash
-# Convert every "DMN" sheet in a workbook into out/<DecisionId>.dmn
-excel2dmn rules.xlsx --out-dir out --json
+# 1. Scaffold a template, open it in Excel and fill in your rules
+excel2dmn init --name "Shipping Rate" -o shipping_DMN.xlsx
 
-# Single-sheet workbook to a named file
-excel2dmn shipping_rates_DMN.xlsx -o out/SHIPPING_RATES.dmn
+# 2. Convert to DMN (Camunda 7 is the default)
+excel2dmn shipping_DMN.xlsx --out-dir out/
 
-# Target Camunda 8 instead of Camunda 7 (default)
-excel2dmn rules.xlsx --platform camunda8 --out-dir out
+# 3. For Camunda 8, add --platform camunda8
+excel2dmn shipping_DMN.xlsx --platform camunda8 --out-dir out/
 
-# Validate only (CI gate) / run static analysis
-excel2dmn rules.xlsx --validate-only
-excel2dmn rules.xlsx --analyze
-
-# Generate a starter template (refuses to overwrite an existing file without --force)
-excel2dmn init --name "Shipping Rate Decision" -o shipping_DMN.xlsx
-
-# Generate a config file interactively (step-by-step, with defaults)
-excel2dmn config
-excel2dmn config --defaults        # non-interactive: write the full default config
-
-# Reverse: turn an existing DMN into an editable Excel template
-excel2dmn import existing.dmn -o existing.xlsx
+# 4. Validate and run static analysis before deploying
+excel2dmn shipping_DMN.xlsx --validate-only
+excel2dmn shipping_DMN.xlsx --analyze
 ```
 
-`--sheet <name...>` narrows the sheets that would be converted anyway (names containing
-`DMN` by default) to the exact names given; it cannot select a sheet outside that set.
-Two sheets with the same decision id (compared after sanitising, ignoring case) are an
-error, since their files would overwrite each other.
+**Camunda 7** output includes `camunda:historyTimeToLive` / `camunda:versionTag` metadata. Deploy
+via the REST API, Maven plugin, or Camunda Modeler.
 
-**Output:** success lines and hints go to stdout; errors and warnings go to **stderr**
-(conversion warnings as `⚠ <sheet>: [<cell>] <message>`, the `[<cell>]` part omitted when the warning has no cell, e.g. zero input columns; others as `warning: …`).
-Warnings do not change the exit code.
+**Camunda 8** output includes `modeler:executionPlatform="Camunda Cloud"` metadata, accepts the
+full FEEL type set (`number`, `time`, `dateTime`, durations), and rejects `PRIORITY` /
+`OUTPUT ORDER` hit policies (not supported by Camunda 8). Deploy via Zeebe or the Web Modeler.
 
-`import` accepts DMN 1.3 only (open older DMN in a current Camunda Modeler to upgrade it)
-and creates missing directories for `-o`. When the DMN has allowed values it writes the
-5-row allowed-values layout and prints the config needed to convert the template back.
+**Other DMN 1.3 engines** — the decision table content (rules, inputs, outputs, FEEL expressions)
+is standard DMN 1.3; the platform metadata above is additive and ignored by other engines. For
+maximum portability, use `number` or untyped columns instead of the Camunda 7 numeric types
+(`integer`, `long`, `double`).
 
-> **Camunda 8 round-trip:** the Excel template does not carry the platform, so when
-> `import` detects a Camunda 8 source it prints a hint to re-convert with
-> `--platform camunda8`. Pass that flag on the way back so C8-only types (e.g. `number`)
-> aren't rejected by the default Camunda 7 type check.
+---
 
-### Programmatic API
+## Import an Existing DMN
+
+Already have `.dmn` files? `excel2dmn import` brings them into the Excel workflow:
+
+```bash
+# Turn an existing DMN into an editable Excel template
+excel2dmn import existing.dmn -o existing_DMN.xlsx
+
+# Edit in Excel, then convert back
+excel2dmn existing_DMN.xlsx --out-dir out/
+
+# Camunda 8 source: pass the platform flag on the way back
+excel2dmn existing_DMN.xlsx --platform camunda8 --out-dir out/
+```
+
+`import` accepts DMN 1.3 only — open older files in Camunda Modeler first to upgrade them. When
+the source DMN uses allowed values, `import` prints the config snippet needed to convert the
+template back cleanly.
+
+---
+
+## Configuration
+
+All markers, offsets, and output options are configurable via `excel2dmn.config.json` (or
+`--config`). Precedence: CLI flags → `--config` → `./excel2dmn.config.json` → built-in defaults.
+
+```bash
+excel2dmn config              # interactive wizard → excel2dmn.config.json
+excel2dmn config --defaults   # write the full default config without prompts
+```
+
+Key things you can configure:
+
+| Area             | What you can change                                                         |
+| ---------------- | --------------------------------------------------------------------------- |
+| Sheet selection  | Which sheet name pattern triggers conversion (`sheet.match`, `sheet.value`) |
+| Header offsets   | Row positions for name, type, allowed values, label (`header.*Offset`)      |
+| Allowed values   | Enable the 5-row layout for dropdown constraints                            |
+| Rule IDs         | Template for generated rule IDs (`rules.idTemplate`)                        |
+| Output filenames | File naming template (`output.fileNameTemplate`)                            |
+| Types            | Aliases for `Any`, numeric type normalisation (`types.*`)                   |
+| FEEL validation  | Strictness mode (`validation.feel.mode`)                                    |
+| Platform         | `camunda7` (default) or `camunda8`                                          |
+
+The complete reference is
+[`excel2dmn.config.example.json`](./excel2dmn.config.example.json); every field is documented in
+[`SOLUTION_SPEC.md` §7.1](./SOLUTION_SPEC.md).
+
+---
+
+## The Sheet Template
+
+Only sheets whose **name contains `DMN`** are processed. Each sheet uses a **4-row header**:
+
+| Row    | Purpose                                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored)                                               |
+| Name   | FEEL/technical name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value                                                |
+| Type   | `string` · `boolean` · `integer` · `long` · `double` · `date` · `Any`; Camunda 8 also accepts `number`, `time`, `dateTime`, durations |
+| Label  | Human column header, directly above the rules                                                                                         |
+
+Rules follow beneath the header; reading stops at the first fully-empty row. An `Annotations` cell
+becomes that rule's `<description>`. See [`SOLUTION_SPEC.md`](./SOLUTION_SPEC.md) for the full
+format contract and `definitions/shipping_rates_DMN.xlsx` for a worked example.
+
+---
+
+## Programmatic API
 
 ```js
-import { convert, parseWorkbook, buildDmn, loadConfig } from 'excel2dmn';
+import { convert, loadConfig } from 'excel2dmn';
 
 const { results, problems } = await convert('rules.xlsx', { config: loadConfig({}) });
 ```
-
-`dmnToModels` reports the source platform it detects on each model as `model.__platform`
-(`'camunda7'` or `'camunda8'`), but `buildDmn` always builds for the platform in the config
-you pass — it never switches on its own. To rebuild a parsed DMN for the platform it came
-from, pass the detected value explicitly:
 
 ```js
 import { readFileSync } from 'node:fs';
@@ -94,52 +172,10 @@ const cfg = loadConfig({ overrides: { platform: model.__platform } });
 const xml = await buildDmn(model, cfg);
 ```
 
-## The sheet template
+`dmnToModels` exposes the detected platform as `model.__platform` (`'camunda7'` or `'camunda8'`).
+`buildDmn` always builds for the platform in the config you pass.
 
-Only sheets whose **name contains `DMN`** are processed. Each is described by a
-**4-row header** (found by the marker row, not a fixed position):
-
-| Row    | Purpose                                                                                                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper)                                                                                                                                              |
-| Name   | technical/FEEL name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value                                                                                                                                                      |
-| Type   | Camunda types: `string` · `boolean` · `integer` · `long` · `double` · `date` · `Any`; Camunda 8 also accepts `number`, `time`, `dateTime` and durations (untyped is canonically `Any`; `any`/`none`/`object` are also accepted, any casing) |
-| Label  | human column header, directly above the rules                                                                                                                                                                                               |
-
-**Allowed values (opt-in).** An extra row between _Type_ and _Label_ can hold a
-FEEL list (`"EU","US"`) per column → dropdowns in the Modeler; it is required for
-`PRIORITY`/`OUTPUT ORDER`. Enable it with
-`{ "header": { "allowedValuesOffset": 3, "labelOffset": 4 }, "rules": { "startOffset": 5 } }`
-(see [`SOLUTION_SPEC.md` §3.6](./SOLUTION_SPEC.md)).
-
-Rules follow beneath the header. A row is a rule if any input/output cell is
-filled; reading stops at the first fully-empty row. Rule ids are generated as
-`rule_<n>` (1-based; `rules.idTemplate` can use `<row>` for the Excel row). An `Annotations` cell becomes that rule's `<description>`.
-
-See [`SOLUTION_SPEC.md`](./SOLUTION_SPEC.md) for the full contract, and
-`definitions/shipping_rates_DMN.xlsx` for a worked example.
-
-## Configuration
-
-All markers and rules are configurable via `excel2dmn.config.json` (or `--config`).
-Precedence: CLI flags → `--config` → `./excel2dmn.config.json` → built-in defaults.
-
-The fastest way to get a config is the interactive generator, which walks you
-through the common settings (and, on request, the advanced ones), showing the
-default for each — press Enter to accept it or type a new value:
-
-```bash
-excel2dmn config                        # step-by-step wizard → excel2dmn.config.json
-excel2dmn config --defaults             # write the full default config, no prompts
-excel2dmn config -o my.config.json      # choose a different output path
-```
-
-By default the wizard writes only the keys you changed (a minimal file); pass
-`--full` to write every key. [`excel2dmn.config.example.json`](./excel2dmn.config.example.json)
-is a checked-in copy of the complete default config you can copy and edit by
-hand. Every field is documented in [`SOLUTION_SPEC.md` §7.1](./SOLUTION_SPEC.md).
-Unknown keys (typos) are ignored with a `warning:` on stderr naming the key; wrong types
-or values for known keys are errors.
+---
 
 ## Development
 
@@ -150,19 +186,23 @@ npm run lint
 npm run convert -- definitions/shipping_rates_DMN.xlsx --out-dir out
 ```
 
+---
+
 ## Security
 
-`excel2dmn` is a local CLI: it makes **no network calls** and **never executes
-spreadsheet content** (FEEL is parsed, not evaluated). See [`SECURITY.md`](./SECURITY.md)
-for the threat model and how to report a vulnerability.
+`excel2dmn` is a local CLI: it makes **no network calls** and **never executes spreadsheet
+content** (FEEL expressions are parsed, not evaluated). See [`SECURITY.md`](./SECURITY.md).
+
+---
 
 ## Contributing
 
-Issues and PRs welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the
+Issues and PRs welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md) and
 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md).
+
+---
 
 ## License
 
 MIT © excel2dmn contributors. Third-party dependency licenses are listed in
-`THIRD-PARTY-NOTICES.txt`, which ships in the npm package (generate it locally
-with `npm run licenses:notices`).
+`THIRD-PARTY-NOTICES.txt` (generate locally with `npm run licenses:notices`).

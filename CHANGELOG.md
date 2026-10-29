@@ -6,6 +6,19 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-10-29
+
+### Added
+
+- README rewritten to introduce the **Excel-as-source-of-truth** paradigm: analysts author decision logic directly in Excel, alongside business data, and convert to deployment-ready DMN in a single command — eliminating the analyst→developer handoff for large rule sets.
+- Quickstart sections for **Camunda 7** and **Camunda 8** in README.
+- **Migrate from DMN** section in README documenting `excel2dmn import` for bringing existing `.dmn` files into the Excel workflow.
+
+### Changed
+
+- Package version 0.1.5 → **1.0.0** (stable public release).
+- README restructured to lead with the workflow paradigm and feature `excel2dmn import` as a first-class migration path.
+
 ### Added
 
 - Camunda 8 output target. Select it with `--platform camunda8` (or `"platform": "camunda8"` in the config). Camunda 8 files carry `modeler:executionPlatform="Camunda Cloud"` / `modeler:executionPlatformVersion` on `<definitions>` and omit the Camunda 7 `historyTimeToLive` / `versionTag` extension attributes. The execution-platform version is configurable via `camunda8.executionPlatformVersion` (default `8.6.0`).
