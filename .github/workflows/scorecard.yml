@@ -29,6 +29,11 @@ jobs:
           results_file: results.sarif
           results_format: sarif
           publish_results: true # enables the badge and public score
+          # The default GITHUB_TOKEN cannot read branch protection settings, so the
+          # Branch-Protection check would see almost nothing. SCORECARD_TOKEN is a
+          # fine-grained PAT for this repository with read-only Administration,
+          # Contents and Metadata; without the secret, the default token is used.
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
