@@ -155,16 +155,17 @@ excel2dmn import existing.dmn -o existing_DMN.xlsx
 
 Only sheets whose **name contains `DMN`** are processed. Each sheet uses a **4-row header** (found by a marker row, not a fixed position):
 
-| Row    | Purpose                                                                                                                                                                                                                                     |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper column)                                                                                                                                      |
-| Name   | FEEL/technical name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value                                                                                                                                                     |
-| Type   | `string` · `boolean` · `integer` · `long` · `double` · `date` · `Any`; Camunda 8 also accepts `number`, `time`, `dateTime`, durations                                                                                                      |
-| Label  | Human column header, directly above the rules                                                                                                                                                                                               |
+| Row    | Purpose                                                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Marker | `input` · `output` · `policy` · `ID` · `name` · `Annotations` (anything else = ignored helper column)                                 |
+| Name   | FEEL/technical name (`orderTotal`) — for `ID`/`name`/`policy` this row holds the value                                                |
+| Type   | `string` · `boolean` · `integer` · `long` · `double` · `date` · `Any`; Camunda 8 also accepts `number`, `time`, `dateTime`, durations |
+| Label  | Human column header, directly above the rules                                                                                         |
 
 Rules follow beneath the header. A row is a rule if any input/output cell is filled; reading stops at the first fully-empty row. An `Annotations` cell becomes that rule's `<description>`.
 
 **Allowed values (optional).** Add an extra row between _Type_ and _Label_ with a FEEL list (e.g. `"EU","US"`) to enable dropdowns in the Modeler. Required for `PRIORITY`/`OUTPUT ORDER` hit policies. Enable with:
+
 ```json
 { "header": { "allowedValuesOffset": 3, "labelOffset": 4 }, "rules": { "startOffset": 5 } }
 ```
