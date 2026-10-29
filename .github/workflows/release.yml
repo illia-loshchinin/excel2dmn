@@ -33,10 +33,12 @@ jobs:
           ref: refs/tags/${{ steps.tag.outputs.tag }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          # Node 24 bundles npm 11 (trusted publishing needs npm >= 11.5.1), so npm itself
+          # is not upgraded with an unpinned `npm install -g npm@latest`.
+          node-version: 24
+          check-latest: true # never fall back to an early 24.x cached on the runner
           registry-url: https://registry.npmjs.org
           cache: npm
-      - run: npm install -g npm@latest # trusted publishing requires npm >= 11.5.1
       - run: npm ci
       - run: npm run lint && npm test
       # Publishing a tarball skips prepublishOnly, so generate its notices file here.

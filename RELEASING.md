@@ -44,15 +44,15 @@ step, so the tag and the published version always match.
 Triggered by a `v*` tag. The **build** job runs on a fresh Ubuntu runner:
 
 1. **Checkout** the repo at the tagged commit.
-2. **Setup Node 22** pointed at the public npm registry.
-3. **`npm install -g npm@latest`** — Trusted Publishing needs npm >= 11.5.1.
-4. **`npm ci`** — clean, exact install from `package-lock.json`.
-5. **`npm run lint && npm test`** — if either fails, the job stops and nothing
+2. **Setup Node 24** pointed at the public npm registry. Node 24 bundles npm 11,
+   which Trusted Publishing needs (>= 11.5.1).
+3. **`npm ci`** — clean, exact install from `package-lock.json`.
+4. **`npm run lint && npm test`** — if either fails, the job stops and nothing
    is published. This is the safety gate.
-6. **`npm run licenses:notices`, then `npm pack`** — builds
+5. **`npm run licenses:notices`, then `npm pack`** — builds
    `excel2dmn-X.Y.Z.tgz` with `THIRD-PARTY-NOTICES.txt` inside. (Publishing a
    tarball skips `prepublishOnly`, so the notices are generated here.)
-7. **`npm publish ./excel2dmn-X.Y.Z.tgz --access public`** — publishes that
+6. **`npm publish ./excel2dmn-X.Y.Z.tgz --access public`** — publishes that
    exact tarball to npm. The runner's OIDC identity is verified against the
    package's Trusted Publisher config, and an npm provenance attestation is
    generated automatically (`publishConfig.provenance` is `true` in
