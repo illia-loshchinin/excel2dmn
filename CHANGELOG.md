@@ -6,6 +6,10 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Releases now create the GitHub Release automatically, with the package tarball and signed [SLSA](https://slsa.dev/) Build L3 provenance (`.intoto.jsonl`) attached. The npm package is published from that same tarball. The Release workflow can also be run by hand for an existing tag to attach provenance to an older release without republishing.
+
 ## [1.0.0] — 2026-10-29
 
 ### Added
