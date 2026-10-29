@@ -9,6 +9,12 @@ project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Releases now create the GitHub Release automatically, with the package tarball and signed [SLSA](https://slsa.dev/) Build L3 provenance (`.intoto.jsonl`) attached. The npm package is published from that same tarball. The Release workflow can also be run by hand for an existing tag to attach provenance to an older release without republishing.
+- Property-based round-trip tests (fast-check): arbitrary rule descriptions, labels and FEEL string literals survive DMN → model → DMN unchanged, and rebuilding is byte-stable.
+
+### Security
+
+- `fast-uri` (via `ajv`) updated to 3.1.9 for four moderate advisories.
+- The release job runs on Node 24, whose bundled npm supports trusted publishing, instead of upgrading npm with an unpinned `npm install -g npm@latest`.
 
 ## [1.0.0] — 2026-10-29
 
