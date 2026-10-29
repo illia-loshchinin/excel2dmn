@@ -45,6 +45,20 @@ This is not a convenience wrapper. It is a change in who produces DMN and when. 
 - `excel2dmn init` scaffolds a ready-to-fill template
 - **Reverse import** (`excel2dmn import`): existing `.dmn` → `.xlsx`
 
+### Engine compatibility
+
+The decision table content — rules, inputs, outputs, hit policies, FEEL expressions — is standard
+**DMN 1.3** and works with any compliant engine (Drools, IBM ODM, Red Hat DM, etc.). The
+Camunda-specific bits are additive metadata only:
+
+- **Camunda 7**: adds `camunda:historyTimeToLive` / `camunda:versionTag` on `<definitions>`
+- **Camunda 8**: adds `modeler:executionPlatform` / `modeler:executionPlatformVersion` on
+  `<definitions>`
+
+Other engines ignore those attributes. The one portability caveat is **Camunda 7 numeric types**
+(`integer`, `long`, `double`) — non-Camunda engines may not recognise them; use `number` or leave
+columns untyped for maximum portability.
+
 ---
 
 ## Install
